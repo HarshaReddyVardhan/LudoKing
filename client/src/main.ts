@@ -133,23 +133,31 @@ function connect(joinedRoom: string) {
 // Notification Area
 const notificationArea = document.getElementById('notification-area')!;
 
-function showDiceNotification(playerColor: string, value: number) {
+function showNotification(titleText: string, valueText: string) {
   const card = document.createElement('div');
   card.className = 'notification-card';
 
   const title = document.createElement('div');
   title.className = 'notif-title';
-  title.textContent = `${playerColor} ROLLED`;
+  title.textContent = titleText;
 
   const val = document.createElement('div');
   val.className = 'notif-value';
-  val.textContent = value.toString();
+  val.textContent = valueText;
+
+  if (valueText.length > 2) {
+    val.style.fontSize = '1.2rem';
+  }
 
   card.appendChild(title);
   card.appendChild(val);
 
   notificationArea.innerHTML = '';
   notificationArea.appendChild(card);
+}
+
+function showDiceNotification(playerColor: string, value: number) {
+  showNotification(`${playerColor} ROLLED`, value.toString());
 }
 
 function clearNotifications() {
@@ -196,7 +204,9 @@ function handleMessage(data: any) {
       break;
 
     case 'TURN_SKIPPED':
-      clearNotifications();
+      // Show notification briefly
+      showNotification("TURN SKIPPED", "No Moves");
+      setTimeout(clearNotifications, 2000);
       break;
 
     case 'TURN_TIMER_START':

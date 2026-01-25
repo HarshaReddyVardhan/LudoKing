@@ -270,13 +270,22 @@ export default class LudoServer implements Party.Server {
         }));
 
         if (validPawnIds.length === 0) {
-            this.skipTurn();
+            // Add a small delay so the user sees the dice result before turn switch
+            setTimeout(() => {
+                this.skipTurn();
+                this.broadcastState(); // Broadcast the new state (next player)
+            }, 1000);
         } else {
             // Reset timer for move phase
             this.startTurnTimer();
         }
 
-        this.broadcastState();
+        // Note: We intentionally do NOT broadcast state here if skipping, 
+        // to avoid a jittery double-update (Dice -> Moved/Skipped).
+        // If not skipping, we broadcast below.
+        if (validPawnIds.length > 0) {
+            this.broadcastState();
+        }
     }
 
     private handleMove(conn: Party.Connection, pawnId: string) {
@@ -323,6 +332,12 @@ export default class LudoServer implements Party.Server {
 
     private skipTurn() {
         const activePlayers = this.gameState.players.filter(p => p.isActive).map(p => p.color);
+
+        if (activePlayers.length === 0) {
+            console.error("No active players found in skipTurn!");
+            return;
+        }
+
         const currentIndex = activePlayers.indexOf(this.gameState.currentTurn);
         const nextIndex = (currentIndex + 1) % activePlayers.length;
 
@@ -402,29 +417,8 @@ export default class LudoServer implements Party.Server {
 
         if (action.type === 'ROLL') {
             // Bot rolls
-            const result = handleRollRequest(this.gameState, this.gameState.currentTurn); // Bot ID?
-            // Wait, we need the bot's player object.
-            // The bot IS the current turn player.
-            // We need the ID. logic/diceEngine expects ID.
             const player = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
             if (!player) return;
-
-            // Logic was:
-            // this.gameState = { ...this.gameState, currentDiceValue: action.diceValue!, ... }
-            // But to reuse logic we could use handleRollRequest if we mock the ID or trust the bot decision?
-            // The simpleBotDecide returns a *proposed* action.
-            // But existing code just *applied* the proposal.
-
-            // Let's stick to applying the proposal from valid possibilities, 
-            // BUT `simpleBotDecide` does return a dice value logic which is odd. 
-            // Let's look at `simpleBotDecide`: it actually calls `rollDice` internally?
-            // No, it returns `diceValue` only if it simulates it?
-            // Actually, `simpleBot.ts` likely just says "I want to ROLL". 
-            // The previous code: `if (action.type === 'ROLL') { ... currentDiceValue: action.diceValue ... }`
-            // suggests `simpleBotDecide` was cheated/generating the value?
-
-            // Checks `simpleBot.ts`... `return { type: 'ROLL', diceValue: Math.floor(Math.random()...) }`?
-            // If so, we should use the server's `handleRollRequest` to ensure fairness/factors logic applies!
 
             // Let's use the authoritative `handleRollRequest` instead of the bot's generated value.
             const rollResult = handleRollRequest(this.gameState, player.id);
