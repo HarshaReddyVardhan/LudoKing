@@ -162,19 +162,19 @@ body {
    I'll map them in CSS classes.
 */
 .base-red-bg {
-  background: var(--red);
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.3), rgba(220, 38, 38, 0.15));
 }
 
 .base-blue-bg {
-  background: var(--blue);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(37, 99, 235, 0.15));
 }
 
 .base-green-bg {
-  background: var(--green);
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.3), rgba(22, 163, 74, 0.15));
 }
 
 .base-yellow-bg {
-  background: var(--yellow);
+  background: linear-gradient(135deg, rgba(202, 138, 4, 0.3), rgba(202, 138, 4, 0.15));
 }
 
 .safe-square {
@@ -221,18 +221,22 @@ body {
 
 .pawn.red {
   --pawn-color: var(--red);
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(220, 38, 38, 0.6));
 }
 
 .pawn.blue {
   --pawn-color: var(--blue);
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(37, 99, 235, 0.6));
 }
 
 .pawn.green {
   --pawn-color: var(--green);
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(22, 163, 74, 0.6));
 }
 
 .pawn.yellow {
   --pawn-color: var(--yellow);
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(202, 138, 4, 0.6));
 }
 
 .pawn.clickable {
@@ -287,6 +291,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px;
+  font-size: 0.95em;
+}
+
+#player-info {
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+#room-code {
+  white-space: nowrap;
+  min-width: fit-content;
 }
 
 #dice-display {

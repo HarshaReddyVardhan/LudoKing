@@ -4,9 +4,9 @@ export interface Coordinate {
 }
 
 // 0-51 Main Track Logic implemented in getGridCoord and GLOBAL_TRACK
-export function getGridCoord(color: string, position: number): Coordinate {
+export function getGridCoord(color: string, position: number, pawnIndex: number = 0): Coordinate {
     // 0 = Base
-    if (position === 0) return getBaseCoord(color);
+    if (position === 0) return getBaseCoord(color, pawnIndex);
 
     // 59 = Goal
     if (position === 59) return { r: 8, c: 8 };
@@ -72,12 +72,27 @@ const GLOBAL_TRACK: Coordinate[] = [
     { r: 8, c: 1 }, { r: 7, c: 1 }
 ];
 
-function getBaseCoord(color: string): Coordinate {
+function getBaseCoord(color: string, pawnIndex: number = 0): Coordinate {
+    // Each base is 6x6. Position pawns in a square pattern within the base
+    // Pawn positions will be at (2,2), (2,5), (5,2), (5,5) relative to base top-left
+    const offsets = [
+        { dr: 2, dc: 2 },  // Top-left pawn
+        { dr: 2, dc: 5 },  // Top-right pawn
+        { dr: 5, dc: 2 },  // Bottom-left pawn
+        { dr: 5, dc: 5 }   // Bottom-right pawn
+    ];
+
+    const offset = offsets[pawnIndex % 4];
+
     switch (color) {
-        case 'RED': return { r: 13, c: 3 }; // Center of BL
-        case 'GREEN': return { r: 3, c: 3 }; // Center of TL
-        case 'YELLOW': return { r: 3, c: 13 }; // Center of TR
-        case 'BLUE': return { r: 13, c: 13 }; // Center of BR
+        case 'RED': // Bottom-left base (rows 10-15, cols 1-6)
+            return { r: 10 + offset.dr, c: 1 + offset.dc };
+        case 'GREEN': // Top-left base (rows 1-6, cols 1-6)
+            return { r: 1 + offset.dr, c: 1 + offset.dc };
+        case 'YELLOW': // Top-right base (rows 1-6, cols 10-15)
+            return { r: 1 + offset.dr, c: 10 + offset.dc };
+        case 'BLUE': // Bottom-right base (rows 10-15, cols 10-15)
+            return { r: 10 + offset.dr, c: 10 + offset.dc };
         default: return { r: 0, c: 0 };
     }
 }

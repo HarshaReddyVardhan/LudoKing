@@ -177,7 +177,7 @@ function renderState() {
   const pawnsAtCell = new Map<string, Pawn[]>();
 
   gameState.pawns.forEach(pawn => {
-    const coord = getGridCoord(pawn.color, pawn.position);
+    const coord = getGridCoord(pawn.color, pawn.position, pawn.pawnIndex);
     const key = `${coord.r},${coord.c}`;
     if (!pawnsAtCell.has(key)) pawnsAtCell.set(key, []);
     pawnsAtCell.get(key)!.push(pawn);
@@ -193,6 +193,11 @@ function renderState() {
     pawns.forEach((pawn, idx) => {
       const el = document.createElement('div');
       el.className = `pawn ${pawn.color.toLowerCase()}`;
+
+      // Add fading for opponent pawns
+      if (myColor && pawn.color !== myColor) {
+        el.style.opacity = '0.4';
+      }
 
       // Handle overlaps with small offsets
       if (pawns.length > 1) {
