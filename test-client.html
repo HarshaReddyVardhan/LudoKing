@@ -100,6 +100,41 @@
             color: #fbbf24;
         }
 
+        .timer-bar-container {
+            background: #0f3460;
+            border-radius: 8px;
+            height: 24px;
+            margin: 12px 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .timer-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #4ade80);
+            border-radius: 8px;
+            transition: width 1s linear, background 0.5s;
+            width: 100%;
+        }
+
+        .timer-bar.warning {
+            background: linear-gradient(90deg, #eab308, #fbbf24);
+        }
+
+        .timer-bar.danger {
+            background: linear-gradient(90deg, #dc2626, #f87171);
+        }
+
+        .timer-bar-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            font-size: 14px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
         .status {
             display: inline-block;
             padding: 4px 12px;
@@ -177,7 +212,11 @@
 
     <div class="section">
         <h2>Actions</h2>
-        <p><strong>⏱️ Timer: <span id="timer">-</span></strong></p>
+        <p><strong>⏱️ Turn Timer:</strong> <span id="timerPlayer">-</span></p>
+        <div class="timer-bar-container">
+            <div id="timerBar" class="timer-bar"></div>
+            <span id="timer" class="timer-bar-text">-</span>
+        </div>
         <button id="rollBtn" disabled>🎲 Roll Dice</button>
         <span id="diceResult"></span>
         <p>Valid Pawns: <span id="validPawns">-</span></p>
@@ -226,26 +265,46 @@
         }
 
         let countdownInterval = null;
-        function startCountdown(timeoutMs) {
+        let totalTime = 30;
+
+        function startCountdown(timeoutMs, player) {
             if (countdownInterval) clearInterval(countdownInterval);
-            let remaining = timeoutMs / 1000;
+
+            totalTime = timeoutMs / 1000;
+            let remaining = totalTime;
+
+            // Update player indicator
+            if (player) {
+                $('timerPlayer').textContent = `${player}'s turn`;
+                $('timerPlayer').className = player.toLowerCase();
+            }
+
+            // Reset bar
+            const bar = $('timerBar');
+            bar.style.width = '100%';
+            bar.className = 'timer-bar';
             $('timer').textContent = `${remaining}s`;
-            $('timer').style.color = '#4ade80';
 
             countdownInterval = setInterval(() => {
                 remaining--;
+                const percent = (remaining / totalTime) * 100;
+
+                bar.style.width = `${percent}%`;
+                $('timer').textContent = `${remaining}s`;
+
+                // Update bar color based on time remaining
+                if (remaining <= 5) {
+                    bar.className = 'timer-bar danger';
+                } else if (remaining <= 10) {
+                    bar.className = 'timer-bar warning';
+                } else {
+                    bar.className = 'timer-bar';
+                }
+
                 if (remaining <= 0) {
                     clearInterval(countdownInterval);
-                    $('timer').textContent = 'BOT TAKING OVER...';
-                    $('timer').style.color = '#f87171';
-                } else {
-                    $('timer').textContent = `${remaining}s`;
-                    if (remaining <= 10) {
-                        $('timer').style.color = '#fbbf24';
-                    }
-                    if (remaining <= 5) {
-                        $('timer').style.color = '#f87171';
-                    }
+                    $('timer').textContent = '🤖 BOT';
+                    bar.style.width = '0%';
                 }
             }, 1000);
         }
