@@ -7,7 +7,8 @@ import { MAX_PLAYERS_PER_ROOM } from "./room/roomUtils";
 import { simpleBotDecide } from "./logic/simpleBot";
 
 // Turn timeout in milliseconds (30 seconds)
-const TURN_TIMEOUT_MS = 30 * 1000;
+// Turn timeout in milliseconds (2 minutes)
+const TURN_TIMEOUT_MS = 120 * 1000;
 
 // Message types from client
 interface RollRequest {
@@ -397,7 +398,7 @@ export default class LudoServer implements Party.Server {
         }
 
         const action = simpleBotDecide(this.gameState);
-        const BOT_ACTION_DELAY = 1500; // 1.5s lag for realistic/watchable speed
+        const BOT_ACTION_DELAY = 1000; // 1s lag for faster gameplay (max 3s rule)
 
         if (action.type === 'ROLL') {
             // Bot rolls

@@ -39,24 +39,161 @@ body {
   position: relative;
 }
 
-#game-ui {
+#game-ui.layout-sidebar {
   flex: 1;
   display: flex;
+  flex-direction: row;
+  padding: 20px;
+  gap: 20px;
+  overflow: hidden;
+}
+
+.board-panel {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+}
+
+.sidebar-panel {
+  width: 300px;
+  display: flex;
   flex-direction: column;
-  padding: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 20px;
+  gap: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Sidebar Sections */
+#room-code-container {
+  text-align: center;
+  font-size: 1.2em;
+  color: #aaa;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-section {
+  text-align: center;
+}
+
+#turn-indicator {
+  font-size: 1.2em;
+  font-weight: bold;
+  margin-bottom: 10px;
+  min-height: 1.5em;
+}
+
+/* PLAYER LIST ROWS */
+.vertical-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
   gap: 10px;
 }
 
-/* TOP BAR */
-.top-bar {
+.player-row.active {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateX(5px);
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.player-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.8em;
+}
+
+.player-info-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-name {
+  font-weight: 600;
+  font-size: 1em;
+}
+
+.player-status {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+/* Color Themes for Rows */
+.player-row.red.active {
+  border-left: 4px solid var(--red);
+}
+
+.player-row.blue.active {
+  border-left: 4px solid var(--blue);
+}
+
+.player-row.green.active {
+  border-left: 4px solid var(--green);
+}
+
+.player-row.yellow.active {
+  border-left: 4px solid var(--yellow);
+}
+
+.player-row.red .player-avatar {
+  background: var(--red);
+}
+
+.player-row.blue .player-avatar {
+  background: var(--blue);
+}
+
+.player-row.green .player-avatar {
+  background: var(--green);
+}
+
+.player-row.yellow .player-avatar {
+  background: var(--yellow);
+}
+
+
+/* CONTROLS SECTION */
+.controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.utility-controls {
   display: flex;
   justify-content: space-between;
+  font-size: 0.8em;
+  color: #666;
+  margin-top: 10px;
   align-items: center;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 8px 12px;
-  border-radius: 8px;
-  height: 50px;
-  gap: 10px;
 }
 
 .icon-btn {
@@ -125,8 +262,36 @@ body {
   grid-template-rows: repeat(15, 1fr);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
   /* Responsive Size Logic */
-  height: min(85vh, 85vw);
-  width: min(85vh, 85vw);
+  height: min(90vh, 90vw);
+  width: min(90vh, 90vw);
+}
+
+@media (max-width: 900px) {
+  #game-ui.layout-sidebar {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .sidebar-panel {
+    width: 100%;
+    flex-direction: column;
+    padding: 15px;
+  }
+
+  .vertical-player-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .player-row {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .controls-section {
+    flex-direction: row;
+    justify-content: space-between;
+  }
 }
 
 /* Removed orientation media queries as min() handles both cases better */
@@ -274,15 +439,7 @@ body {
 }
 
 /* CONTROLS */
-.bottom-controls {
-  height: 80px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 10px;
-  border-radius: 12px;
-}
+/* OLD CONTROLS REMOVED */
 
 .panel {
   flex: 1;

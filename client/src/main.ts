@@ -265,29 +265,60 @@ function renderState() {
     });
   });
 
-  // UI Updates
-  const isMyTurn = gameState.currentTurn === myColor;
-  statusEl.textContent = isMyTurn ? "Your Turn!" : `${gameState.currentTurn}'s Turn`;
-  statusEl.style.color = isMyTurn ? '#4ade80' : '#ccc';
-  if (isMyTurn) statusEl.style.textShadow = "0 0 10px #4ade80";
-  else statusEl.style.textShadow = "none";
+  // UI Updates handled below
+  // statusEl update moved to after player lookup
 
-  // Render User List
+  // Render User List (Sidebar Rows)
   const playerInfoPanel = document.getElementById('player-info')!;
   playerInfoPanel.innerHTML = ''; // clear
 
   gameState.players.forEach(p => {
-    const tag = document.createElement('div');
-    tag.className = `player-tag ${p.color.toLowerCase()}`;
-    tag.textContent = p.name;
-    // Highlight current turn
+    // Container
+    const row = document.createElement('div');
+    row.className = `player-row ${p.color.toLowerCase()}`;
     if (gameState?.currentTurn === p.color) {
-      tag.classList.add('active-turn');
-      tag.style.setProperty('--turn-color', getComputedStyle(document.body).getPropertyValue(`--${p.color.toLowerCase()}`));
+      row.classList.add('active');
     }
-    playerInfoPanel.appendChild(tag);
+
+    // Avatar
+    const avatar = document.createElement('div');
+    avatar.className = 'player-avatar';
+    avatar.textContent = p.name.substring(0, 1).toUpperCase();
+
+    // Info Text
+    const info = document.createElement('div');
+    info.className = 'player-info-text';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'player-name';
+    nameEl.textContent = p.name + (p.color === myColor ? " (You)" : "");
+
+    const statusText = document.createElement('div');
+    statusText.className = 'player-status';
+    statusText.textContent = p.isBot ? "Bot" : (p.isActive ? "Online" : "Away");
+
+    info.appendChild(nameEl);
+    info.appendChild(statusText);
+
+    row.appendChild(avatar);
+    row.appendChild(info);
+
+    playerInfoPanel.appendChild(row);
   });
 
+  // UI Updates: Turn Indicator with NAME
+  const currentPlayer = gameState.players.find(p => p.color === gameState?.currentTurn);
+  const isMyTurn = gameState.currentTurn === myColor;
+
+  if (isMyTurn) {
+    statusEl.textContent = "Your Turn!";
+    statusEl.style.color = '#4ade80';
+  } else {
+    statusEl.textContent = `${currentPlayer?.name || gameState.currentTurn}'s Turn`;
+    statusEl.style.color = '#ccc';
+  }
+
+  // Roll Button Logic
   if (isMyTurn && gameState.gamePhase === 'ROLLING') {
     rollBtn.disabled = false;
     rollBtn.textContent = "ROLL DICE";

@@ -158,6 +158,10 @@ function calculateDistanceToHomeEntry(position: number, homeEntry: number): numb
  * Checks if a position is blocked by player's own pawn
  */
 function isBlockedByOwnPawn(position: number, color: PlayerColor, pawns: Pawn[]): boolean {
+    // Safe squares allow multiple pawns of any color (including own)
+    if (isSafeSquare(position)) {
+        return false;
+    }
     return pawns.some(p => p.color === color && p.position === position && position !== BOARD.HOME);
 }
 
