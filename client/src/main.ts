@@ -249,18 +249,22 @@ function renderState() {
     const cell = board.children[index] as HTMLElement;
 
     pawns.forEach((pawn, idx) => {
+      // Wrapper for positioning
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pawn-wrapper';
+
+      // Handle overlaps with small offsets on the wrapper
+      if (pawns.length > 1) {
+        const offset = (idx * 5) - ((pawns.length - 1) * 2.5);
+        wrapper.style.transform = `translate(${offset}px, ${offset}px)`;
+      }
+
       const el = document.createElement('div');
       el.className = `pawn ${pawn.color.toLowerCase()}`;
 
       // Add fading for opponent pawns
       if (myColor && pawn.color !== myColor) {
         el.style.opacity = '0.4';
-      }
-
-      // Handle overlaps with small offsets
-      if (pawns.length > 1) {
-        const offset = (idx * 5) - ((pawns.length - 1) * 2.5);
-        el.style.transform = `translate(${offset}px, ${offset}px)`;
       }
 
       // Check if movable
@@ -271,7 +275,8 @@ function renderState() {
         el.onclick = () => sendMove(pawn.id);
       }
 
-      cell.appendChild(el);
+      wrapper.appendChild(el);
+      cell.appendChild(wrapper);
     });
   });
 
