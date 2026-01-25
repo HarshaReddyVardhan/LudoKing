@@ -40,6 +40,8 @@
       </div>
     </div>
 
+    <div id="notification-area"></div>
+
     <!-- Overlay for joining -->
     <div id="join-overlay">
       <div class="modal">
@@ -61,14 +63,45 @@
           <button id="back-btn-1" class="text-btn">Back</button>
         </div>
 
-        <!-- Step 3: Join Room Code -->
+        <!-- Step 3: Room Configuration (for creating) -->
+        <div id="step-config" style="display: none;">
+          <p class="welcome-text">Room Configuration</p>
+
+          <div class="config-group">
+            <label>Total Players</label>
+            <div class="number-control">
+              <button class="control-btn" id="total-players-minus">−</button>
+              <span class="control-value" id="total-players-value">4</span>
+              <button class="control-btn" id="total-players-plus">+</button>
+            </div>
+            <p class="config-hint">2-4 players</p>
+          </div>
+
+          <div class="config-group">
+            <label>Bots</label>
+            <div class="number-control">
+              <button class="control-btn" id="bot-count-minus">−</button>
+              <span class="control-value" id="bot-count-value">0</span>
+              <button class="control-btn" id="bot-count-plus">+</button>
+            </div>
+            <p class="config-hint">Cannot exceed total players</p>
+          </div>
+
+          <p id="config-error" class="error-text"
+            style="display:none; color: #ff4757; font-size: 0.9em; margin: 4px 0;">
+            Invalid configuration</p>
+          <button id="confirm-create-btn" class="primary">Create Room</button>
+          <button id="back-btn-3" class="text-btn">Back</button>
+        </div>
+
+        <!-- Step 4: Join Room Code -->
         <div id="step-join" style="display: none;">
           <p>Enter Room Code</p>
           <input type="text" id="join-room" placeholder="e.g. 123456" maxlength="8" />
           <p id="join-error" class="error-text" style="display:none; color: #ff4757; font-size: 0.9em; margin: 4px 0;">
             Invalid Code</p>
           <button id="confirm-join-btn" class="primary">Join Room</button>
-          <button id="back-btn-2" class="text-btn">Back</button>
+          <button id="back-btn-4" class="text-btn">Back</button>
         </div>
 
       </div>

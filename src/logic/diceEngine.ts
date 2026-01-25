@@ -2,9 +2,16 @@ import { GameState, PlayerColor } from '../shared/types';
 
 /**
  * Generates a random dice value between 1 and 6 (inclusive).
- * This is the ONLY place dice values should be generated (anti-cheat).
+ * If weightSix is true, increases the probability of rolling a 6.
+ * (Standard: ~16%, Weighted: ~40%)
  */
-export function rollDice(): number {
+export function rollDice(weightSix: boolean = false): number {
+    if (weightSix) {
+        // 40% chance of rolling a 6
+        if (Math.random() < 0.4) return 6;
+        // Remaining 60% split among 1-5
+        return Math.floor(Math.random() * 5) + 1;
+    }
     return Math.floor(Math.random() * 6) + 1;
 }
 
@@ -42,8 +49,12 @@ export function handleRollRequest(
         };
     }
 
+    // Check factor: Does player have 3 or more pawns in base (position 0)?
+    const pawnsInZero = state.pawns.filter(p => p.color === player.color && p.position === 0).length;
+    const shouldWeightSix = pawnsInZero >= 3;
+
     // Generate the dice value
-    const diceValue = rollDice();
+    const diceValue = rollDice(shouldWeightSix);
 
     // Lock the state to MOVING phase (player must move before rolling again)
     const newState: GameState = {

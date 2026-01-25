@@ -49,18 +49,34 @@ const joinRoomInput = document.getElementById('join-room') as HTMLInputElement;
 // Steps
 const stepName = document.getElementById('step-name')!;
 const stepAction = document.getElementById('step-action')!;
+const stepConfig = document.getElementById('step-config')!;
 const stepJoin = document.getElementById('step-join')!;
 
 // Buttons & text
 const nextBtn = document.getElementById('next-btn')!;
 const createBtn = document.getElementById('create-btn')!;
 const showJoinBtn = document.getElementById('show-join-btn')!;
+const confirmCreateBtn = document.getElementById('confirm-create-btn')!;
 const confirmJoinBtn = document.getElementById('confirm-join-btn')!;
 const backBtn1 = document.getElementById('back-btn-1')!;
-const backBtn2 = document.getElementById('back-btn-2')!;
+const backBtn3 = document.getElementById('back-btn-3')!;
+const backBtn4 = document.getElementById('back-btn-4')!;
 const displayName = document.getElementById('display-name')!;
 const nameError = document.getElementById('name-error')!;
+const configError = document.getElementById('config-error')!;
 const joinError = document.getElementById('join-error')!;
+
+// Number control elements
+const totalPlayersValue = document.getElementById('total-players-value')!;
+const totalPlayersMinus = document.getElementById('total-players-minus') as HTMLButtonElement;
+const totalPlayersPlus = document.getElementById('total-players-plus') as HTMLButtonElement;
+const botCountValue = document.getElementById('bot-count-value')!;
+const botCountMinus = document.getElementById('bot-count-minus') as HTMLButtonElement;
+const botCountPlus = document.getElementById('bot-count-plus') as HTMLButtonElement;
+
+// State for configuration
+let totalPlayers = 4;
+let botCount = 0;
 
 const rollBtn = document.getElementById('roll-btn') as HTMLButtonElement;
 const diceDisplay = document.getElementById('dice-display')!;
@@ -114,20 +130,41 @@ function connect(joinedRoom: string) {
   };
 }
 
+// Notification Area
+const notificationArea = document.getElementById('notification-area')!;
+
+function showDiceNotification(playerColor: string, value: number) {
+  const card = document.createElement('div');
+  card.className = 'notification-card';
+
+  const title = document.createElement('div');
+  title.className = 'notif-title';
+  title.textContent = `${playerColor} ROLLED`;
+
+  const val = document.createElement('div');
+  val.className = 'notif-value';
+  val.textContent = value.toString();
+
+  card.appendChild(title);
+  card.appendChild(val);
+
+  notificationArea.innerHTML = '';
+  notificationArea.appendChild(card);
+}
+
+function clearNotifications() {
+  notificationArea.innerHTML = '';
+}
+
 function handleMessage(data: any) {
   switch (data.type) {
     case 'ROOM_INFO':
       roomCode = data.roomCode;
       roomCodeEl.textContent = roomCode;
-      // If we created a room, we might auto-join, 
-      // but user still needs to click join to pick name
       break;
 
     case 'JOIN_SUCCESS':
       myColor = data.player.color;
-      // myPlayerId = data.player.id;
-
-      // Save session
       playerId = data.player.id;
       localStorage.setItem('ludo_player_id', playerId!);
 
@@ -146,9 +183,20 @@ function handleMessage(data: any) {
       validPawnIds = data.validPawnIds || [];
       renderState(); // Update highlights
 
+      showDiceNotification(data.player, data.diceValue);
+
       if (data.isBot) {
         statusEl.textContent = `Bot Rolled ${data.diceValue}`;
       }
+      break;
+
+    case 'MOVE_EXECUTED':
+      // Clear notification on move
+      clearNotifications();
+      break;
+
+    case 'TURN_SKIPPED':
+      clearNotifications();
       break;
 
     case 'TURN_TIMER_START':
@@ -304,13 +352,24 @@ function goBackToName() {
   stepName.style.display = 'block';
 }
 
+function showConfigStep() {
+  stepAction.style.display = 'none';
+  stepConfig.style.display = 'block';
+}
+
 function showJoinStep() {
   stepAction.style.display = 'none';
   stepJoin.style.display = 'block';
   joinRoomInput.focus();
 }
 
-function goBackToAction() {
+function goBackToActionFromConfig() {
+  stepConfig.style.display = 'none';
+  stepAction.style.display = 'block';
+  showError(configError, false);
+}
+
+function goBackToActionFromJoin() {
   stepJoin.style.display = 'none';
   stepAction.style.display = 'block';
   showError(joinError, false);
@@ -338,24 +397,47 @@ function joinGame() {
 }
 
 function createGame() {
+  // Validate configuration
+  if (totalPlayers < 2 || totalPlayers > 4) {
+    showError(configError, true);
+    configError.innerText = "Total players must be between 2 and 4";
+    return;
+  }
+
+  if (botCount < 0 || botCount >= totalPlayers) {
+    showError(configError, true);
+    configError.innerText = "Bot count must be less than total players";
+    return;
+  }
+
+  showError(configError, false);
+
   // CREATE NEW: create = true
   // Generate a cleaner 6-digit number room code 
   const room = Math.floor(100000 + Math.random() * 900000).toString();
-  connectAndJoin(room, playerName, true);
+  connectAndJoin(room, playerName, true, totalPlayers, botCount);
 }
 
-function connectAndJoin(room: string, name: string, create: boolean) {
+function connectAndJoin(room: string, name: string, create: boolean, totalPlayers?: number, botCount?: number) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     connect(room);
     setTimeout(() => {
       const payload: any = { type: 'JOIN_REQUEST', name, create };
       if (playerId) payload.playerId = playerId;
+      if (create && totalPlayers !== undefined) {
+        payload.totalPlayers = totalPlayers;
+        payload.botCount = botCount || 0;
+      }
 
       socket?.send(JSON.stringify(payload));
     }, 500);
   } else {
     const payload: any = { type: 'JOIN_REQUEST', name, create };
     if (playerId) payload.playerId = playerId;
+    if (create && totalPlayers !== undefined) {
+      payload.totalPlayers = totalPlayers;
+      payload.botCount = botCount || 0;
+    }
     socket.send(JSON.stringify(payload));
   }
 }
@@ -373,9 +455,11 @@ const fsBtn = document.getElementById('fs-btn') as HTMLButtonElement;
 // Event Listeners
 nextBtn.onclick = handleNameStep;
 backBtn1.onclick = goBackToName;
-backBtn2.onclick = goBackToAction;
+backBtn3.onclick = goBackToActionFromConfig;
+backBtn4.onclick = goBackToActionFromJoin;
 
-createBtn.onclick = createGame;
+createBtn.onclick = showConfigStep;
+confirmCreateBtn.onclick = createGame;
 showJoinBtn.onclick = showJoinStep;
 confirmJoinBtn.onclick = joinGame;
 
@@ -388,6 +472,53 @@ joinNameInput.addEventListener('keypress', (e) => {
 joinRoomInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') joinGame();
 });
+
+// Number control handlers
+function updateNumberControls() {
+  totalPlayersValue.textContent = totalPlayers.toString();
+  botCountValue.textContent = botCount.toString();
+
+  // Update button states
+  totalPlayersMinus.disabled = totalPlayers <= 2;
+  totalPlayersPlus.disabled = totalPlayers >= 4;
+  botCountMinus.disabled = botCount <= 0;
+  botCountPlus.disabled = botCount >= (totalPlayers - 1);
+}
+
+totalPlayersMinus.onclick = () => {
+  if (totalPlayers > 2) {
+    totalPlayers--;
+    // Ensure bots don't exceed new limit
+    if (botCount >= totalPlayers) {
+      botCount = totalPlayers - 1;
+    }
+    updateNumberControls();
+  }
+};
+
+totalPlayersPlus.onclick = () => {
+  if (totalPlayers < 4) {
+    totalPlayers++;
+    updateNumberControls();
+  }
+};
+
+botCountMinus.onclick = () => {
+  if (botCount > 0) {
+    botCount--;
+    updateNumberControls();
+  }
+};
+
+botCountPlus.onclick = () => {
+  if (botCount < totalPlayers - 1) {
+    botCount++;
+    updateNumberControls();
+  }
+};
+
+// Initialize controls
+updateNumberControls();
 
 fsBtn.onclick = () => {
   if (!document.fullscreenElement) {

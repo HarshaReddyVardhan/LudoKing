@@ -17,31 +17,21 @@ export function getGridCoord(color: string, position: number, pawnIndex: number 
     }
 
     // 1-52 = Main Track
-    // Standardize to Red's perspective (offset 0)
-    // Red Start = 1.
-    // If my TRACK_NODES starts at some arbitrary point, I need to find offset.
-    // Let's say TRACK_NODES[0] is (14,7). 
-    // This looks like Blue's output path.
-    // Let's find (7,2). It is index 13 in TRACK_NODES roughly.
-    // Actually, I should just recompute the track to start exactly at Red's 1.
+    // Offsets for each color's starting position (Position 1) on the GLOBAL_TRACK
+    // Red starts at index 0
+    // Green starts at index 13
+    // Yellow starts at index 26
+    // Blue starts at index 39
+    let offset = 0;
+    switch (color) {
+        case 'RED': offset = 0; break;
+        case 'GREEN': offset = 13; break;
+        case 'YELLOW': offset = 26; break;
+        case 'BLUE': offset = 39; break;
+    }
 
-    // Re-ordered Track starting at Red's Pos 1 (7, 2)
-    // 1. (7,2) to (7,6) -> 5
-    // 2. (6,7) to (1,7) -> 6
-    // 3. (1,8) to (1,9) -> 2
-    // 4. (2,9) to (6,9) -> 5
-    // 5. (7,10) to (7,15) -> 6
-    // 6. (8,15) to (9,15) -> 2
-    // 7. (9,14) to (9,10) -> 5
-    // 8. (10,9) to (15,9) -> 6
-    // 9. (15,8) to (15,7) -> 2
-    // 10. (14,7) to (10,7) -> 5
-    // 11. (9,6) to (9,1) -> 6
-    // 12. (8,1) -> 1
-    // Total 51? + (7,1)? Need 52.
-
-    // Let's use the standard mapped nodes array in code.
-    const loopIndex = (position - 1) % 52;
+    // Calculate grid index: (RelativePos - 1 + Offset) % 52
+    const loopIndex = (position - 1 + offset) % 52;
     return GLOBAL_TRACK[loopIndex];
 }
 
