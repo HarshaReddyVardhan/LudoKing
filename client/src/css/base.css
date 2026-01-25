@@ -1,0 +1,29 @@
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+body {
+    margin: 0;
+    background: var(--bg-dark);
+    color: var(--text-light);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    overflow: auto;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overscroll-behavior: none;
+    /* Prevent pull-to-refresh on mobile */
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    min-height: 100dvh;
+    /* use dynamic viewport height for mobile */
+    max-width: 100%;
+    position: relative;
+}
