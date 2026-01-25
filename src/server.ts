@@ -3,7 +3,7 @@ import { GameState } from "./shared/types";
 import { createInitialState, createPlayer, initializePawns } from "./logic/gameState";
 import { handleRollRequest } from "./logic/diceEngine";
 import { getValidMoves, getValidPawnIds, executeMove } from "./logic/moveValidation";
-import { generateRoomCode, MAX_PLAYERS_PER_ROOM } from "./room/roomUtils";
+import { MAX_PLAYERS_PER_ROOM } from "./room/roomUtils";
 import { simpleBotDecide } from "./logic/simpleBot";
 
 // Turn timeout in milliseconds (30 seconds)
@@ -36,7 +36,7 @@ export default class LudoServer implements Party.Server {
     turnStartTime: number = 0;
 
     constructor(readonly room: Party.Room) {
-        this.roomCode = generateRoomCode();
+        this.roomCode = this.room.id;
         this.gameState = createInitialState(this.roomCode);
     }
 
