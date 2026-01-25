@@ -24,10 +24,10 @@ export function getGridCoord(color: string, position: number, pawnIndex: number 
     // Blue starts at index 39
     let offset = 0;
     switch (color) {
-        case 'RED': offset = 0; break;
-        case 'GREEN': offset = 13; break;
+        case 'RED': offset = 39; break;
+        case 'GREEN': offset = 26; break;
         case 'YELLOW': offset = 26; break;
-        case 'BLUE': offset = 39; break;
+        case 'BLUE': offset = 13; break;
     }
 
     // Calculate grid index: (RelativePos - 1 + Offset) % 52

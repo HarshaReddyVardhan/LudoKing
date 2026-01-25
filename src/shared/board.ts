@@ -69,7 +69,7 @@ export function toGlobalPosition(localPosition: number, color: PlayerColor): num
         return -1;
     }
 
-    const startPos = BOARD.START_POSITIONS[color];
-    // Calculate global position on the 52-square track
-    return ((localPosition - 1 + startPos - 1) % BOARD.MAIN_TRACK_LENGTH) + 1;
+    // For positions on the shared main track (1-52), the position value IS the global position.
+    // The previous implementation incorrectly added the start position offset again.
+    return localPosition;
 }
