@@ -6,13 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Ludo King Party</title>
   <link rel="stylesheet" href="/src/style.css" />
+  <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 
 <body>
   <div id="app">
     <div id="game-ui">
       <div class="top-bar">
+        <button id="fs-btn" class="icon-btn">⛶</button>
         <div id="room-code">Code: <span class="highlight">---</span></div>
         <div id="timer-bar">
           <div class="timer-progress"></div>

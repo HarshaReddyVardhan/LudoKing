@@ -1,4 +1,4 @@
-import { PlayerColor, COLORS } from './types';
+import { PlayerColor } from './types';
 
 /**
  * Ludo Board Layout Constants

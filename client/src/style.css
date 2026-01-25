@@ -25,14 +25,17 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  overscroll-behavior: none;
+  /* Prevent pull-to-refresh on mobile */
 }
 
 #app {
-  width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
-  max-width: 600px; /* Tablet/Desktop limit */
+  width: 100vw;
+  height: 100dvh;
+  /* use dynamic viewport height for mobile */
+  max-width: 100%;
   position: relative;
 }
 
@@ -49,10 +52,33 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0, 0, 0, 0.3);
   padding: 8px 12px;
   border-radius: 8px;
   height: 50px;
+  gap: 10px;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
 }
 
 #timer-bar {
@@ -67,11 +93,15 @@ body {
 .timer-progress {
   height: 100%;
   background: #4ade80;
-  width: 0%; /* animate this */
+  width: 0%;
+  /* animate this */
   transition: width 1s linear;
 }
 
-.highlight { color: #facc15; font-weight: bold; }
+.highlight {
+  color: #facc15;
+  font-weight: bold;
+}
 
 /* BOARD */
 #board-container {
@@ -83,7 +113,6 @@ body {
 }
 
 #ludo-board {
-  width: 100%;
   aspect-ratio: 1/1;
   background: var(--board-bg);
   border: 4px solid #000;
@@ -91,7 +120,21 @@ body {
   display: grid;
   grid-template-columns: repeat(15, 1fr);
   grid-template-rows: repeat(15, 1fr);
-  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+}
+
+@media (orientation: landscape) {
+  #ludo-board {
+    height: 100%;
+    width: auto;
+  }
+}
+
+@media (orientation: portrait) {
+  #ludo-board {
+    width: 100%;
+    height: auto;
+  }
 }
 
 .cell {
@@ -103,18 +146,43 @@ body {
 }
 
 /* Special Zones */
-.base-area { border: 2px solid #000; }
-.base-red { background: var(--red); grid-column: 1/7; grid-row: 10/16; }
-.base-blue { background: var(--blue); grid-column: 1/7; grid-row: 1/7; } /* Wait, standard ludo colors pos varies? */
+.base-area {
+  border: 2px solid #000;
+}
+
+.base-red {
+  background: var(--red);
+  grid-column: 1/7;
+  grid-row: 10/16;
+}
+
+.base-blue {
+  background: var(--blue);
+  grid-column: 1/7;
+  grid-row: 1/7;
+}
+
+/* Wait, standard ludo colors pos varies? */
 /* Let's define visually:
    Top-Left: Green (Standard?) or Red? 
    Let's stick to Server Types: Red, Blue, Green, Yellow.
    I'll map them in CSS classes.
 */
-.base-red-bg { background: var(--red); }
-.base-blue-bg { background: var(--blue); }
-.base-green-bg { background: var(--green); }
-.base-yellow-bg { background: var(--yellow); }
+.base-red-bg {
+  background: var(--red);
+}
+
+.base-blue-bg {
+  background: var(--blue);
+}
+
+.base-green-bg {
+  background: var(--green);
+}
+
+.base-yellow-bg {
+  background: var(--yellow);
+}
 
 .safe-square {
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23888"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
@@ -129,21 +197,47 @@ body {
   height: 80%;
   border-radius: 50%;
   border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   z-index: 10;
   transition: all 0.3s ease;
   position: absolute;
 }
-.pawn.red { background: var(--red); }
-.pawn.blue { background: var(--blue); }
-.pawn.green { background: var(--green); }
-.pawn.yellow { background: var(--yellow); }
-.pawn.clickable { cursor: pointer; animation: pulse 1s infinite; border: 2px solid #fff; box-shadow: 0 0 10px white; }
+
+.pawn.red {
+  background: var(--red);
+}
+
+.pawn.blue {
+  background: var(--blue);
+}
+
+.pawn.green {
+  background: var(--green);
+}
+
+.pawn.yellow {
+  background: var(--yellow);
+}
+
+.pawn.clickable {
+  cursor: pointer;
+  animation: pulse 1s infinite;
+  border: 2px solid #fff;
+  box-shadow: 0 0 10px white;
+}
 
 @keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* CONTROLS */
@@ -152,18 +246,32 @@ body {
   display: flex;
   gap: 10px;
   align-items: center;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0, 0, 0, 0.3);
   padding: 10px;
   border-radius: 12px;
 }
 
-.panel { flex: 1; background: #222; height: 100%; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-#dice-display { 
-  width: 60px; height: 60px; 
-  background: white; color: black; 
-  font-size: 32px; font-weight: bold; 
-  border-radius: 12px; 
-  display: flex; align-items: center; justify-content: center;
+.panel {
+  flex: 1;
+  background: #222;
+  height: 100%;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#dice-display {
+  width: 60px;
+  height: 60px;
+  background: white;
+  color: black;
+  font-size: 32px;
+  font-weight: bold;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .action-btn {
@@ -176,34 +284,63 @@ body {
   font-size: 18px;
   box-shadow: 0 4px 0 #c0392b;
 }
-.action-btn:active { transform: translateY(4px); box-shadow: none; }
-.action-btn:disabled { background: #555; box-shadow: none; color: #888; transform: none; }
+
+.action-btn:active {
+  transform: translateY(4px);
+  box-shadow: none;
+}
+
+.action-btn:disabled {
+  background: #555;
+  box-shadow: none;
+  color: #888;
+  transform: none;
+}
 
 /* MODAL */
 #join-overlay {
-  position: absolute; inset: 0;
-  background: rgba(0,0,0,0.8);
-  display: flex; justify-content: center; align-items: center;
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
   z-index: 100;
   backdrop-filter: blur(5px);
 }
+
 .modal {
   background: #1a1a2e;
   padding: 30px;
   border-radius: 16px;
   text-align: center;
   border: 1px solid #333;
-  width: 90%; max-width: 400px;
+  width: 90%;
+  max-width: 400px;
 }
+
 .modal input {
-  width: 100%; padding: 12px; margin: 10px 0;
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
   background: #0f3460;
   border: 1px solid #333;
-  color: white; border-radius: 8px;
+  color: white;
+  border-radius: 8px;
   font-size: 16px;
 }
+
 .modal .primary {
-  width: 100%; background: #e94560; margin-top: 10px;
+  width: 100%;
+  background: #e94560;
+  margin-top: 10px;
 }
-.row { display: flex; gap: 10px; }
-.row input { flex: 1; }
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+.row input {
+  flex: 1;
+}

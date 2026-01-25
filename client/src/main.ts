@@ -1,5 +1,5 @@
 import './style.css';
-import { getGridCoord, Coordinate } from './boardMapping';
+import { getGridCoord } from './boardMapping';
 
 // Simple type definitions to avoid importing complex build chain issues for now
 interface Pawn {
@@ -32,7 +32,7 @@ interface GameState {
 // Global App State
 let socket: WebSocket | null = null;
 let gameState: GameState | null = null;
-let myPlayerId: string | null = null;
+// let myPlayerId: string | null = null;
 let myColor: string | null = null;
 let validPawnIds: string[] = [];
 let roomCode: string = '';
@@ -40,7 +40,7 @@ let roomCode: string = '';
 const PARTYKIT_HOST = 'localhost:1999';
 
 // DOM Elements
-const app = document.getElementById('app')!;
+// const app = document.getElementById('app')!;
 const board = document.getElementById('ludo-board')!;
 const joinOverlay = document.getElementById('join-overlay')!;
 const joinBtn = document.getElementById('join-btn') as HTMLButtonElement;
@@ -109,7 +109,7 @@ function handleMessage(data: any) {
 
     case 'JOIN_SUCCESS':
       myColor = data.player.color;
-      myPlayerId = data.player.id;
+      // myPlayerId = data.player.id;
       myColorEl.textContent = `You are ${myColor}`;
       myColorEl.className = data.player.color.toLowerCase();
       joinOverlay.style.display = 'none';
@@ -260,10 +260,20 @@ function sendMove(pawnId: string) {
   socket?.send(JSON.stringify({ type: 'MOVE_REQUEST', pawnId }));
 }
 
+const fsBtn = document.getElementById('fs-btn') as HTMLButtonElement;
+
 // Event Listeners
 joinBtn.onclick = joinGame;
 createBtn.onclick = createGame;
 rollBtn.onclick = sendRoll;
+
+fsBtn.onclick = () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+};
 
 // Init
 initBoard();
