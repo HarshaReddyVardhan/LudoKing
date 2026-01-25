@@ -388,8 +388,57 @@ body {
 
 .modal .primary {
   width: 100%;
-  background: #e94560;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   margin-top: 10px;
+  padding: 16px 32px;
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+}
+
+.modal .primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.modal .primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, #7c8ff0 0%, #8b5bb8 100%);
+}
+
+.modal .primary:hover::before {
+  left: 100%;
+}
+
+.modal .primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4),
+    0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.modal .primary:focus {
+  outline: none;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 0 3px rgba(102, 126, 234, 0.3);
 }
 
 .row {

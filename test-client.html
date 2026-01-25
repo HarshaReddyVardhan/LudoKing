@@ -204,6 +204,7 @@
         <h2>Join Game</h2>
         <p>
             Name: <input type="text" id="nameInput" placeholder="Your name">
+            <button id="createBtn" disabled>Create Room</button>
             <button id="joinBtn" disabled>Join Game</button>
         </p>
         <p>Players:</p>
@@ -253,6 +254,7 @@
         function updateStatus(connected) {
             $('status').textContent = connected ? 'Connected' : 'Disconnected';
             $('status').className = `status ${connected ? 'connected' : 'disconnected'}`;
+            $('createBtn').disabled = !connected;
             $('joinBtn').disabled = !connected;
             $('rollBtn').disabled = !connected;
             $('moveBtn').disabled = !connected;
@@ -377,9 +379,16 @@
             };
         });
 
+        $('createBtn').addEventListener('click', () => {
+            const name = $('nameInput').value.trim() || 'Player';
+            const msg = JSON.stringify({ type: 'JOIN_REQUEST', name, create: true });
+            log(`→ ${msg}`, 'send');
+            ws.send(msg);
+        });
+
         $('joinBtn').addEventListener('click', () => {
             const name = $('nameInput').value.trim() || 'Player';
-            const msg = JSON.stringify({ type: 'JOIN_REQUEST', name });
+            const msg = JSON.stringify({ type: 'JOIN_REQUEST', name, create: false });
             log(`→ ${msg}`, 'send');
             ws.send(msg);
         });

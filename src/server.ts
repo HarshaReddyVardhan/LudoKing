@@ -17,6 +17,8 @@ interface RollRequest {
 interface JoinRequest {
     type: 'JOIN_REQUEST';
     name: string;
+    create?: boolean;  // Set to true when creating a new room
+    playerId?: string; // For reconnection
 }
 
 interface MoveRequest {
@@ -69,7 +71,7 @@ export default class LudoServer implements Party.Server {
 
         switch (parsed.type) {
             case 'JOIN_REQUEST':
-                this.handleJoin(sender, parsed.name);
+                this.handleJoin(sender, parsed.name, parsed.create, parsed.playerId);
                 break;
             case 'ROLL_REQUEST':
                 this.handleRoll(sender);
