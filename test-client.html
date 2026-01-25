@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ludo Game - Test Client</title>
     <style>
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             max-width: 800px;
@@ -14,13 +18,18 @@
             background: #1a1a2e;
             color: #eee;
         }
-        h1 { color: #e94560; }
+
+        h1 {
+            color: #e94560;
+        }
+
         .section {
             background: #16213e;
             border-radius: 8px;
             padding: 16px;
             margin-bottom: 16px;
         }
+
         .section h2 {
             margin-top: 0;
             color: #0f3460;
@@ -29,26 +38,38 @@
             border-radius: 4px;
             display: inline-block;
         }
-        input, button {
+
+        input,
+        button {
             padding: 10px 16px;
             font-size: 16px;
             border: none;
             border-radius: 4px;
             margin-right: 8px;
         }
+
         input {
             background: #0f3460;
             color: #eee;
             width: 200px;
         }
+
         button {
             background: #e94560;
             color: white;
             cursor: pointer;
             transition: background 0.2s;
         }
-        button:hover { background: #ff6b6b; }
-        button:disabled { background: #555; cursor: not-allowed; }
+
+        button:hover {
+            background: #ff6b6b;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+
         #log {
             background: #0f3460;
             padding: 12px;
@@ -58,41 +79,79 @@
             font-family: monospace;
             font-size: 13px;
         }
-        .log-entry { margin: 4px 0; }
-        .log-send { color: #4ade80; }
-        .log-recv { color: #60a5fa; }
-        .log-error { color: #f87171; }
-        .log-info { color: #fbbf24; }
+
+        .log-entry {
+            margin: 4px 0;
+        }
+
+        .log-send {
+            color: #4ade80;
+        }
+
+        .log-recv {
+            color: #60a5fa;
+        }
+
+        .log-error {
+            color: #f87171;
+        }
+
+        .log-info {
+            color: #fbbf24;
+        }
+
         .status {
             display: inline-block;
             padding: 4px 12px;
             border-radius: 12px;
             font-size: 14px;
         }
-        .status.connected { background: #22c55e; }
-        .status.disconnected { background: #ef4444; }
+
+        .status.connected {
+            background: #22c55e;
+        }
+
+        .status.disconnected {
+            background: #ef4444;
+        }
+
         #roomCode {
             font-size: 24px;
             font-weight: bold;
             color: #fbbf24;
             letter-spacing: 4px;
         }
+
         .players {
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
         }
+
         .player-card {
             padding: 8px 16px;
             border-radius: 8px;
             font-weight: bold;
         }
-        .player-card.RED { background: #dc2626; }
-        .player-card.BLUE { background: #2563eb; }
-        .player-card.GREEN { background: #16a34a; }
-        .player-card.YELLOW { background: #ca8a04; }
+
+        .player-card.RED {
+            background: #dc2626;
+        }
+
+        .player-card.BLUE {
+            background: #2563eb;
+        }
+
+        .player-card.GREEN {
+            background: #16a34a;
+        }
+
+        .player-card.YELLOW {
+            background: #ca8a04;
+        }
     </style>
 </head>
+
 <body>
     <h1>🎲 Ludo Game - Test Client</h1>
 
@@ -118,6 +177,7 @@
 
     <div class="section">
         <h2>Actions</h2>
+        <p><strong>⏱️ Timer: <span id="timer">-</span></strong></p>
         <button id="rollBtn" disabled>🎲 Roll Dice</button>
         <span id="diceResult"></span>
         <p>Valid Pawns: <span id="validPawns">-</span></p>
@@ -160,28 +220,53 @@
         }
 
         function updatePlayers(players) {
-            $('players').innerHTML = players.map(p => 
+            $('players').innerHTML = players.map(p =>
                 `<div class="player-card ${p.color}">${p.name} (${p.color})</div>`
             ).join('');
+        }
+
+        let countdownInterval = null;
+        function startCountdown(timeoutMs) {
+            if (countdownInterval) clearInterval(countdownInterval);
+            let remaining = timeoutMs / 1000;
+            $('timer').textContent = `${remaining}s`;
+            $('timer').style.color = '#4ade80';
+
+            countdownInterval = setInterval(() => {
+                remaining--;
+                if (remaining <= 0) {
+                    clearInterval(countdownInterval);
+                    $('timer').textContent = 'BOT TAKING OVER...';
+                    $('timer').style.color = '#f87171';
+                } else {
+                    $('timer').textContent = `${remaining}s`;
+                    if (remaining <= 10) {
+                        $('timer').style.color = '#fbbf24';
+                    }
+                    if (remaining <= 5) {
+                        $('timer').style.color = '#f87171';
+                    }
+                }
+            }, 1000);
         }
 
         $('connectBtn').addEventListener('click', () => {
             const roomId = $('roomIdInput').value.trim() || 'test-room';
             const url = `ws://${PARTYKIT_HOST}/parties/main/${roomId}`;
-            
+
             log(`Connecting to ${url}...`, 'info');
-            
+
             ws = new WebSocket(url);
-            
+
             ws.onopen = () => {
                 log('Connected!', 'info');
                 updateStatus(true);
             };
-            
+
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 log(`← ${event.data}`, 'recv');
-                
+
                 switch (data.type) {
                     case 'ROOM_INFO':
                         $('roomCode').textContent = data.roomCode;
@@ -192,7 +277,7 @@
                         updatePlayers(data.state.players);
                         break;
                     case 'DICE_RESULT':
-                        $('diceResult').textContent = `Rolled: ${data.diceValue}`;
+                        $('diceResult').textContent = `Rolled: ${data.diceValue}${data.isBot ? ' (BOT)' : ''}`;
                         $('validPawns').textContent = data.validPawnIds?.join(', ') || 'None';
                         break;
                     case 'JOIN_SUCCESS':
@@ -202,7 +287,17 @@
                         log(`${data.player.name} joined as ${data.player.color}`, 'info');
                         break;
                     case 'MOVE_EXECUTED':
-                        log(`Pawn ${data.pawnId} moved!`, 'info');
+                        log(`Pawn ${data.pawnId} moved!${data.isBot ? ' (BOT)' : ''}`, 'info');
+                        break;
+                    case 'TURN_TIMER_START':
+                        log(`⏱️ Timer started for ${data.player} - ${data.timeoutMs / 1000}s`, 'info');
+                        startCountdown(data.timeoutMs);
+                        break;
+                    case 'BOT_TAKEOVER':
+                        log(`🤖 BOT TAKEOVER: ${data.player} - ${data.reason}`, 'error');
+                        break;
+                    case 'TURN_SKIPPED':
+                        log(`⏭️ Turn skipped: ${data.reason}`, 'info');
                         break;
                     case 'ERROR':
                     case 'JOIN_REJECTED':
@@ -212,12 +307,12 @@
                         break;
                 }
             };
-            
+
             ws.onclose = () => {
                 log('Disconnected', 'error');
                 updateStatus(false);
             };
-            
+
             ws.onerror = (err) => {
                 log(`WebSocket error`, 'error');
             };
@@ -248,4 +343,5 @@
         });
     </script>
 </body>
+
 </html>
