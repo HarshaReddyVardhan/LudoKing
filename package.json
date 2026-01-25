@@ -1,0 +1,22 @@
+{
+  "name": "ludo-king-party",
+  "version": "0.0.1",
+  "description": "Backend-authoritative multiplayer Ludo game",
+  "scripts": {
+    "dev": "partykit dev",
+    "deploy": "partykit deploy",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["ludo", "multiplayer", "partykit"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "partykit": "^0.0.105",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  }
+}
