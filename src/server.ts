@@ -3,6 +3,7 @@ import { GameState } from "./shared/types";
 import { createInitialState, createPlayer, initializePawns } from "./logic/gameState";
 import { handleRollRequest } from "./logic/diceEngine";
 import { getValidMoves, getValidPawnIds, executeMove } from "./logic/moveValidation";
+import { generateRoomCode, MAX_PLAYERS_PER_ROOM } from "./room/roomUtils";
 
 // Message types from client
 interface RollRequest {
@@ -23,14 +24,29 @@ type ClientMessage = RollRequest | JoinRequest | MoveRequest;
 
 export default class LudoServer implements Party.Server {
     gameState: GameState;
+    roomCode: string;
 
     constructor(readonly room: Party.Room) {
-        this.gameState = createInitialState(room.id);
+        // Generate a friendly room code (the room.id from PartyKit is used internally)
+        this.roomCode = generateRoomCode();
+        this.gameState = createInitialState(this.roomCode);
     }
 
     onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
-        console.log(`Connection established: ${conn.id} in room ${this.room.id}`);
-        // Send current state to the new connection
+        console.log(`Connection established: ${conn.id} in room ${this.roomCode}`);
+
+        // Check if room is full before allowing interaction
+        const currentPlayerCount = this.gameState.players.length;
+
+        // Send current state and room info to the new connection
+        conn.send(JSON.stringify({
+            type: "ROOM_INFO",
+            roomCode: this.roomCode,
+            playerCount: currentPlayerCount,
+            maxPlayers: MAX_PLAYERS_PER_ROOM,
+            isFull: currentPlayerCount >= MAX_PLAYERS_PER_ROOM,
+        }));
+
         conn.send(JSON.stringify({
             type: "SYNC_STATE",
             state: this.gameState
@@ -62,12 +78,25 @@ export default class LudoServer implements Party.Server {
     }
 
     private handleJoin(conn: Party.Connection, name: string) {
+        // Check max players limit
+        if (this.gameState.players.length >= MAX_PLAYERS_PER_ROOM) {
+            conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'Room is full (max 4 players)' }));
+            return;
+        }
+
+        // Check if this connection already joined
+        const existingPlayer = this.gameState.players.find(p => p.id === conn.id);
+        if (existingPlayer) {
+            conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'Already joined' }));
+            return;
+        }
+
         const colors = ['RED', 'BLUE', 'GREEN', 'YELLOW'] as const;
         const takenColors = this.gameState.players.map(p => p.color);
         const availableColor = colors.find(c => !takenColors.includes(c));
 
         if (!availableColor) {
-            conn.send(JSON.stringify({ type: 'ERROR', error: 'Room is full' }));
+            conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'No colors available' }));
             return;
         }
 
@@ -77,6 +106,22 @@ export default class LudoServer implements Party.Server {
         this.gameState.players.push(player);
         this.gameState.pawns.push(...pawns);
         this.gameState.lastUpdate = Date.now();
+
+        // Notify the joining player
+        conn.send(JSON.stringify({
+            type: 'JOIN_SUCCESS',
+            player,
+            roomCode: this.roomCode,
+        }));
+
+        // Broadcast player joined to all
+        this.room.broadcast(JSON.stringify({
+            type: 'PLAYER_JOINED',
+            player,
+            playerCount: this.gameState.players.length,
+        }));
+
+
 
         // If 2+ players and in WAITING, start the game
         if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
