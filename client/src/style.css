@@ -344,3 +344,69 @@ body {
 .row input {
   flex: 1;
 }
+
+/* Multi-step Modal Styles */
+.action-choice {
+  width: 100%;
+  padding: 15px;
+  margin: 8px 0;
+  background: #e94560;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.action-choice:hover {
+  background: #ff6b81;
+}
+
+.action-choice.secondary {
+  background: #16213e;
+  border: 1px solid #333;
+}
+
+.action-choice.secondary:hover {
+  background: #1f2b4d;
+}
+
+.text-btn {
+  background: none;
+  border: none;
+  color: #888;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.text-btn:hover {
+  color: #ccc;
+}
+
+.error-text {
+  animation: shake 0.3s ease-in-out;
+}
+
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-5px);
+  }
+
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+.welcome-text {
+  margin-bottom: 20px;
+  font-size: 1.1em;
+}

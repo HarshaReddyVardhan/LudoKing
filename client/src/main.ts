@@ -43,10 +43,25 @@ const PARTYKIT_HOST = 'localhost:1999';
 // const app = document.getElementById('app')!;
 const board = document.getElementById('ludo-board')!;
 const joinOverlay = document.getElementById('join-overlay')!;
-const joinBtn = document.getElementById('join-btn') as HTMLButtonElement;
-const createBtn = document.getElementById('create-btn') as HTMLButtonElement;
 const joinNameInput = document.getElementById('join-name') as HTMLInputElement;
 const joinRoomInput = document.getElementById('join-room') as HTMLInputElement;
+
+// Steps
+const stepName = document.getElementById('step-name')!;
+const stepAction = document.getElementById('step-action')!;
+const stepJoin = document.getElementById('step-join')!;
+
+// Buttons & text
+const nextBtn = document.getElementById('next-btn')!;
+const createBtn = document.getElementById('create-btn')!;
+const showJoinBtn = document.getElementById('show-join-btn')!;
+const confirmJoinBtn = document.getElementById('confirm-join-btn')!;
+const backBtn1 = document.getElementById('back-btn-1')!;
+const backBtn2 = document.getElementById('back-btn-2')!;
+const displayName = document.getElementById('display-name')!;
+const nameError = document.getElementById('name-error')!;
+const joinError = document.getElementById('join-error')!;
+
 const rollBtn = document.getElementById('roll-btn') as HTMLButtonElement;
 const diceDisplay = document.getElementById('dice-display')!;
 const statusEl = document.getElementById('turn-indicator')!;
@@ -225,31 +240,80 @@ function startTimer(durationMs: number) {
 }
 
 // Actions
-function joinGame() {
-  const name = joinNameInput.value || "Player";
-  const room = joinRoomInput.value || "test-room"; // Or generated
+// Navigation & Validation
+let playerName = "";
 
-  // Connect if not connected (lazy connect on join click for room code support)
+function showError(el: HTMLElement, show: boolean) {
+  el.style.display = show ? 'block' : 'none';
+}
+
+function handleNameStep() {
+  const name = joinNameInput.value.trim();
+  if (name.length < 2) {
+    showError(nameError, true);
+    return;
+  }
+  showError(nameError, false);
+  playerName = name;
+  displayName.textContent = playerName;
+
+  stepName.style.display = 'none';
+  stepAction.style.display = 'block';
+}
+
+function goBackToName() {
+  stepAction.style.display = 'none';
+  stepName.style.display = 'block';
+}
+
+function showJoinStep() {
+  stepAction.style.display = 'none';
+  stepJoin.style.display = 'block';
+  joinRoomInput.focus();
+}
+
+function goBackToAction() {
+  stepJoin.style.display = 'none';
+  stepAction.style.display = 'block';
+  showError(joinError, false);
+}
+
+// Game Action
+function joinGame() {
+  const room = joinRoomInput.value.trim();
+
+  if (!room) {
+    showError(joinError, true);
+    joinError.innerText = "Room Code is required";
+    return;
+  }
+
+  // Basic validation (e.g., length or pattern if desired)
+  if (room.length < 3) {
+    showError(joinError, true);
+    joinError.innerText = "Invalid Room Code";
+    return;
+  }
+
+  showError(joinError, false);
+  connectAndJoin(room, playerName);
+}
+
+function createGame() {
+  // Generate a clearer 6-digit number room code for better UX
+  const room = Math.floor(100000 + Math.random() * 900000).toString();
+  connectAndJoin(room, playerName);
+}
+
+function connectAndJoin(room: string, name: string) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     connect(room);
-    // Wait for connection open to send join
     setTimeout(() => {
       socket?.send(JSON.stringify({ type: 'JOIN_REQUEST', name }));
     }, 500);
   } else {
     socket.send(JSON.stringify({ type: 'JOIN_REQUEST', name }));
   }
-}
-
-function createGame() {
-  // Just connect to a random room code (handled by server generation or clientside random?)
-  // Server generates code on construction. 
-  // We can just connect to 'new' and have server redirect? 
-  // Or client generates a random ID for the room.
-  // Let's use current timestamp/random for now to ensure unique room creation
-  const randomRoom = 'room-' + Math.floor(Math.random() * 10000);
-  joinRoomInput.value = randomRoom;
-  joinGame();
 }
 
 function sendRoll() {
@@ -263,9 +327,23 @@ function sendMove(pawnId: string) {
 const fsBtn = document.getElementById('fs-btn') as HTMLButtonElement;
 
 // Event Listeners
-joinBtn.onclick = joinGame;
+nextBtn.onclick = handleNameStep;
+backBtn1.onclick = goBackToName;
+backBtn2.onclick = goBackToAction;
+
 createBtn.onclick = createGame;
+showJoinBtn.onclick = showJoinStep;
+confirmJoinBtn.onclick = joinGame;
+
 rollBtn.onclick = sendRoll;
+
+// Enter key support
+joinNameInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') handleNameStep();
+});
+joinRoomInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') joinGame();
+});
 
 fsBtn.onclick = () => {
   if (!document.fullscreenElement) {

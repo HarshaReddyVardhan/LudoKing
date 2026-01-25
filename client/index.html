@@ -43,12 +43,33 @@
     <div id="join-overlay">
       <div class="modal">
         <h1>Ludo Party</h1>
-        <input type="text" id="join-name" placeholder="Enter Nickname" maxlength="10" />
-        <div class="row">
-          <input type="text" id="join-room" placeholder="Room Code (Optional)" maxlength="6" />
-          <button id="create-btn">New Room</button>
+
+        <!-- Step 1: Name Entry -->
+        <div id="step-name">
+          <input type="text" id="join-name" placeholder="Enter Your Name" maxlength="12" />
+          <p id="name-error" class="error-text" style="display:none; color: #ff4757; font-size: 0.9em; margin: 4px 0;">
+            Name is required</p>
+          <button id="next-btn" class="primary">Next</button>
         </div>
-        <button id="join-btn" class="primary">Join Game</button>
+
+        <!-- Step 2: Choose Action -->
+        <div id="step-action" style="display: none;">
+          <p class="welcome-text">Welcome, <span id="display-name" class="highlight">Player</span>!</p>
+          <button id="create-btn" class="action-choice">Create New Room</button>
+          <button id="show-join-btn" class="action-choice secondary">Join Existing Room</button>
+          <button id="back-btn-1" class="text-btn">Back</button>
+        </div>
+
+        <!-- Step 3: Join Room Code -->
+        <div id="step-join" style="display: none;">
+          <p>Enter Room Code</p>
+          <input type="text" id="join-room" placeholder="e.g. 123456" maxlength="8" />
+          <p id="join-error" class="error-text" style="display:none; color: #ff4757; font-size: 0.9em; margin: 4px 0;">
+            Invalid Code</p>
+          <button id="confirm-join-btn" class="primary">Join Room</button>
+          <button id="back-btn-2" class="text-btn">Back</button>
+        </div>
+
       </div>
     </div>
   </div>
