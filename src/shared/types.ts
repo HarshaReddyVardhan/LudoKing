@@ -41,3 +41,24 @@ export interface GameState {
     lastMove: MoveLog | null; // For Rewind/History
     winner?: PlayerColor;
 }
+
+// Messages
+export interface JoinRequest {
+    type: 'JOIN_REQUEST';
+    name: string;
+    create?: boolean; // If true, allows creating a new room
+    playerId?: string; // For session persistence
+}
+
+export interface RollRequest {
+    type: 'ROLL_REQUEST';
+}
+
+export interface MoveRequest {
+    type: 'MOVE_REQUEST';
+    pawnId: string;
+}
+
+export interface AddBotRequest {
+    type: 'ADD_BOT';
+}

@@ -110,32 +110,25 @@ body {
   justify-content: center;
   align-items: center;
   position: relative;
+  overflow: hidden;
+  padding: 10px;
 }
 
 #ludo-board {
   aspect-ratio: 1/1;
   background: var(--board-bg);
-  border: 4px solid #000;
-  border-radius: 4px;
+  border: 8px solid #333;
+  border-radius: 12px;
   display: grid;
   grid-template-columns: repeat(15, 1fr);
   grid-template-rows: repeat(15, 1fr);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  /* Responsive Size Logic */
+  height: min(85vh, 85vw);
+  width: min(85vh, 85vw);
 }
 
-@media (orientation: landscape) {
-  #ludo-board {
-    height: 100%;
-    width: auto;
-  }
-}
-
-@media (orientation: portrait) {
-  #ludo-board {
-    width: 100%;
-    height: auto;
-  }
-}
+/* Removed orientation media queries as min() handles both cases better */
 
 .cell {
   border: 0.5px solid #ccc;
@@ -192,47 +185,82 @@ body {
 }
 
 /* Pawns */
+/* Pawns as CONES */
 .pawn {
-  width: 80%;
-  height: 80%;
-  border-radius: 50%;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  width: 0;
+  height: 0;
+  border-left: 15px solid transparent;
+  border-right: 15px solid transparent;
+  border-bottom: 40px solid var(--pawn-color);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
   z-index: 10;
   transition: all 0.3s ease;
   position: absolute;
+  /* Proper centering for cone origin */
+  transform-origin: bottom center;
+  margin-left: -15px;
+  /* Half of width */
+  margin-top: -20px;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5));
+}
+
+.pawn::after {
+  content: '';
+  position: absolute;
+  top: 40px;
+  /* at bottom */
+  left: -15px;
+  width: 30px;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 50%;
+  z-index: -1;
 }
 
 .pawn.red {
-  background: var(--red);
+  --pawn-color: var(--red);
 }
 
 .pawn.blue {
-  background: var(--blue);
+  --pawn-color: var(--blue);
 }
 
 .pawn.green {
-  background: var(--green);
+  --pawn-color: var(--green);
 }
 
 .pawn.yellow {
-  background: var(--yellow);
+  --pawn-color: var(--yellow);
 }
 
 .pawn.clickable {
   cursor: pointer;
-  animation: pulse 1s infinite;
-  border: 2px solid #fff;
-  box-shadow: 0 0 10px white;
+  animation: bounce 1s infinite;
+  filter: drop-shadow(0 0 5px white);
 }
 
+@keyframes bounce {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Updated Pulse for turn indicator or other elements */
 @keyframes pulse {
   0% {
     transform: scale(1);
   }
 
   50% {
-    transform: scale(1.1);
+    transform: scale(1.05);
   }
 
   100% {
@@ -274,27 +302,55 @@ body {
   justify-content: center;
 }
 
+/* Modern Action Button */
 .action-btn {
   background: linear-gradient(135deg, #FF6B6B, #EE5253);
   color: white;
   font-weight: bold;
   height: 60px;
+  border: none;
   border-radius: 30px;
-  padding: 0 30px;
-  font-size: 18px;
-  box-shadow: 0 4px 0 #c0392b;
+  padding: 0 40px;
+  font-size: 20px;
+  box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
-.action-btn:active {
-  transform: translateY(4px);
-  box-shadow: none;
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(238, 82, 83, 0.6);
+  background: linear-gradient(135deg, #ff7675, #ff6b6b);
+}
+
+.action-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 2px 10px rgba(238, 82, 83, 0.4);
 }
 
 .action-btn:disabled {
-  background: #555;
+  background: #333;
   box-shadow: none;
-  color: #888;
+  color: #666;
+  cursor: not-allowed;
   transform: none;
+}
+
+/* User List Globs */
+.player-tag {
+  padding: 5px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  margin-right: 5px;
+  font-size: 0.9em;
+}
+
+.player-tag.active-turn {
+  box-shadow: 0 0 10px var(--turn-color), 0 0 20px var(--turn-color);
+  border: 1px solid white;
+  animation: pulse 1.5s infinite;
 }
 
 /* MODAL */

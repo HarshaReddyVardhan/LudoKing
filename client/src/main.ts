@@ -125,6 +125,11 @@ function handleMessage(data: any) {
     case 'JOIN_SUCCESS':
       myColor = data.player.color;
       // myPlayerId = data.player.id;
+
+      // Save session
+      playerId = data.player.id;
+      localStorage.setItem('ludo_player_id', playerId!);
+
       myColorEl.textContent = `You are ${myColor}`;
       myColorEl.className = data.player.color.toLowerCase();
       joinOverlay.style.display = 'none';
@@ -210,6 +215,24 @@ function renderState() {
   const isMyTurn = gameState.currentTurn === myColor;
   statusEl.textContent = isMyTurn ? "Your Turn!" : `${gameState.currentTurn}'s Turn`;
   statusEl.style.color = isMyTurn ? '#4ade80' : '#ccc';
+  if (isMyTurn) statusEl.style.textShadow = "0 0 10px #4ade80";
+  else statusEl.style.textShadow = "none";
+
+  // Render User List
+  const playerInfoPanel = document.getElementById('player-info')!;
+  playerInfoPanel.innerHTML = ''; // clear
+
+  gameState.players.forEach(p => {
+    const tag = document.createElement('div');
+    tag.className = `player-tag ${p.color.toLowerCase()}`;
+    tag.textContent = p.name;
+    // Highlight current turn
+    if (gameState?.currentTurn === p.color) {
+      tag.classList.add('active-turn');
+      tag.style.setProperty('--turn-color', getComputedStyle(document.body).getPropertyValue(`--${p.color.toLowerCase()}`));
+    }
+    playerInfoPanel.appendChild(tag);
+  });
 
   if (isMyTurn && gameState.gamePhase === 'ROLLING') {
     rollBtn.disabled = false;
@@ -242,9 +265,18 @@ function startTimer(durationMs: number) {
 // Actions
 // Navigation & Validation
 let playerName = "";
+let playerId = localStorage.getItem('ludo_player_id');
+
+// On load, check if we have a name/id?
+if (playerId) {
+  // We have a session.
+  // Ideally we might want to auto-restore name if available?
+  // For now, let's just use it during join.
+  console.log("Found existing session:", playerId);
+}
 
 function showError(el: HTMLElement, show: boolean) {
-  el.style.display = show ? 'block' : 'none';
+  el.style.display = show ? 'block' : 'none'; // Fixed display property
 }
 
 function handleNameStep() {
@@ -288,7 +320,6 @@ function joinGame() {
     return;
   }
 
-  // Basic validation (e.g., length or pattern if desired)
   if (room.length < 3) {
     showError(joinError, true);
     joinError.innerText = "Invalid Room Code";
@@ -296,23 +327,30 @@ function joinGame() {
   }
 
   showError(joinError, false);
-  connectAndJoin(room, playerName);
+  // JOIN EXISTING: create = false
+  connectAndJoin(room, playerName, false);
 }
 
 function createGame() {
-  // Generate a clearer 6-digit number room code for better UX
+  // CREATE NEW: create = true
+  // Generate a cleaner 6-digit number room code 
   const room = Math.floor(100000 + Math.random() * 900000).toString();
-  connectAndJoin(room, playerName);
+  connectAndJoin(room, playerName, true);
 }
 
-function connectAndJoin(room: string, name: string) {
+function connectAndJoin(room: string, name: string, create: boolean) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     connect(room);
     setTimeout(() => {
-      socket?.send(JSON.stringify({ type: 'JOIN_REQUEST', name }));
+      const payload: any = { type: 'JOIN_REQUEST', name, create };
+      if (playerId) payload.playerId = playerId;
+
+      socket?.send(JSON.stringify(payload));
     }, 500);
   } else {
-    socket.send(JSON.stringify({ type: 'JOIN_REQUEST', name }));
+    const payload: any = { type: 'JOIN_REQUEST', name, create };
+    if (playerId) payload.playerId = playerId;
+    socket.send(JSON.stringify(payload));
   }
 }
 

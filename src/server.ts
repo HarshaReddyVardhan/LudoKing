@@ -82,18 +82,67 @@ export default class LudoServer implements Party.Server {
         }
     }
 
-    private handleJoin(conn: Party.Connection, name: string) {
-        if (this.gameState.players.length >= MAX_PLAYERS_PER_ROOM) {
+    private handleJoin(conn: Party.Connection, name: string, create: boolean = false, playerId?: string) {
+        const playerCount = this.gameState.players.length;
+
+        // 1. RECONNECTION LOGIC
+        if (playerId) {
+            const existingPlayer = this.gameState.players.find(p => p.id === playerId);
+            if (existingPlayer) {
+                // Determine if we need to update the socket definition?
+                // PartyKit keeps connection, check if we need to swap IDs?
+                // Actually, we usually want to re-bind the *player* to this new *connection ID* if checking online status,
+                // BUT here we store player ID as the connection ID originally. 
+                // Let's UPDATE the player's ID to the new connection ID to keep it simple for communication,
+                // OR we keep a mapping.
+
+                // For simplicity in this architecture where p.id IS conn.id:
+                // We update the player ID to the NEW conn.id
+                console.log(`Reconnecting player ${existingPlayer.name} (${existingPlayer.id} -> ${conn.id})`);
+
+                // Update IDs in state
+                existingPlayer.id = conn.id;
+                // We also need to update this name if changed? No, keep original name for consistency or update?
+                // Let's keep original name to avoid identity spoofing confusion.
+
+                conn.send(JSON.stringify({
+                    type: 'JOIN_SUCCESS',
+                    player: existingPlayer,
+                    roomCode: this.roomCode,
+                    reconnected: true
+                }));
+
+                this.broadcastState();
+                return;
+            }
+        }
+
+        // 2. CREATE VS JOIN VALIDATION
+        if (playerCount === 0 && !create) {
+            console.log(`Rejecting join to empty room ${this.roomCode} without create flag`);
+            conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'Room does not exist' }));
+            return;
+        }
+
+        // 3. FULL ROOM CHECK
+        if (playerCount >= MAX_PLAYERS_PER_ROOM) {
             conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'Room is full (max 4 players)' }));
             return;
         }
 
-        const existingPlayer = this.gameState.players.find(p => p.id === conn.id);
-        if (existingPlayer) {
-            conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'Already joined' }));
+        // 4. CHECK FOR DUPLICATES (by Connection ID)
+        const alreadyJoined = this.gameState.players.find(p => p.id === conn.id);
+        if (alreadyJoined) {
+            // Treat as success/ack
+            conn.send(JSON.stringify({
+                type: 'JOIN_SUCCESS',
+                player: alreadyJoined,
+                roomCode: this.roomCode,
+            }));
             return;
         }
 
+        // 5. ASSIGN COLOR
         const colors = ['RED', 'BLUE', 'GREEN', 'YELLOW'] as const;
         const takenColors = this.gameState.players.map(p => p.color);
         const availableColor = colors.find(c => !takenColors.includes(c));
@@ -103,6 +152,7 @@ export default class LudoServer implements Party.Server {
             return;
         }
 
+        // 6. CREATE PLAYER
         const player = createPlayer(conn.id, name, availableColor);
         const pawns = initializePawns(availableColor);
 
@@ -122,7 +172,7 @@ export default class LudoServer implements Party.Server {
             playerCount: this.gameState.players.length,
         }));
 
-        // Start game if 2+ players
+        // Start game if 2+ players (Auto-start for now, can move to manual START button later)
         if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
             this.gameState.gamePhase = 'ROLLING';
             this.gameState.currentTurn = this.gameState.players[0].color;
@@ -130,6 +180,39 @@ export default class LudoServer implements Party.Server {
         }
 
         this.broadcastState();
+    }
+
+    private handleAddBot(conn: Party.Connection) {
+        if (this.gameState.players.length >= MAX_PLAYERS_PER_ROOM) return;
+
+        // Only allow if game waiting? Or allow dynamic? Let's say Waiting for now.
+        // Or if in game, add to next empty slot?
+
+        const colors = ['RED', 'BLUE', 'GREEN', 'YELLOW'] as const;
+        const takenColors = this.gameState.players.map(p => p.color);
+        const availableColor = colors.find(c => !takenColors.includes(c));
+
+        if (!availableColor) return;
+
+        const botId = `bot-${Date.now()}`;
+        const botName = `Bot ${availableColor}`;
+
+        const player = createPlayer(botId, botName, availableColor);
+        player.isBot = true;
+
+        const pawns = initializePawns(availableColor);
+
+        this.gameState.players.push(player);
+        this.gameState.pawns.push(...pawns);
+
+        this.broadcastState();
+
+        // If this triggered start
+        if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
+            this.gameState.gamePhase = 'ROLLING';
+            this.gameState.currentTurn = this.gameState.players[0].color;
+            this.startTurnTimer();
+        }
     }
 
     private handleRoll(conn: Party.Connection) {
