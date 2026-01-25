@@ -197,7 +197,9 @@
             <button id="connectBtn">Connect</button>
             <span id="status" class="status disconnected">Disconnected</span>
         </p>
-        <p>Room Code: <span id="roomCode">-</span></p>
+        <p>Room Code: <span id="roomCode"
+                style="cursor: pointer; text-decoration: underline; color: #fbbf24; font-weight: bold;"
+                title="Click to copy">-</span></p>
     </div>
 
     <div class="section">
@@ -408,6 +410,32 @@
             const msg = JSON.stringify({ type: 'MOVE_REQUEST', pawnId });
             log(`→ ${msg}`, 'send');
             ws.send(msg);
+        });
+
+        $('roomCode').addEventListener('click', async () => {
+            const code = $('roomCode').textContent;
+            if (!code || code === '-') {
+                return; // No code to copy yet
+            }
+
+            try {
+                await navigator.clipboard.writeText(code);
+                log(`✓ Copied room code: ${code}`, 'info');
+
+                // Visual feedback on the code itself
+                const codeEl = $('roomCode');
+                const originalText = codeEl.textContent;
+                codeEl.textContent = '✓ Copied!';
+                codeEl.style.color = '#22c55e';
+
+                setTimeout(() => {
+                    codeEl.textContent = originalText;
+                    codeEl.style.color = '#fbbf24';
+                }, 1500);
+            } catch (err) {
+                log('Failed to copy room code', 'error');
+                alert('Failed to copy. Room code: ' + code);
+            }
         });
     </script>
 </body>

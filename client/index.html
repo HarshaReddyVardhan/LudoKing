@@ -17,7 +17,8 @@
     <div id="game-ui">
       <div class="top-bar">
         <button id="fs-btn" class="icon-btn">⛶</button>
-        <div id="room-code">Code: <span class="highlight">---</span></div>
+        <div id="room-code">Code: <span class="highlight" id="room-code-text" style="cursor: pointer;"
+            title="Click to copy">---</span></div>
         <div id="timer-bar">
           <div class="timer-progress"></div>
         </div>
@@ -72,6 +73,9 @@
 
       </div>
     </div>
+
+    <!-- Copy notification -->
+    <div id="copy-notification" class="copy-notification">Code copied!</div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>

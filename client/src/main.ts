@@ -65,9 +65,10 @@ const joinError = document.getElementById('join-error')!;
 const rollBtn = document.getElementById('roll-btn') as HTMLButtonElement;
 const diceDisplay = document.getElementById('dice-display')!;
 const statusEl = document.getElementById('turn-indicator')!;
-const roomCodeEl = document.getElementById('room-code')!.querySelector('.highlight')!;
+const roomCodeEl = document.getElementById('room-code-text')!;
 const myColorEl = document.getElementById('my-color')!;
 const timerBar = document.querySelector('.timer-progress') as HTMLElement;
+const copyNotification = document.getElementById('copy-notification')!;
 
 // Initialize Board Grid
 function initBoard() {
@@ -388,6 +389,28 @@ fsBtn.onclick = () => {
     document.documentElement.requestFullscreen();
   } else {
     document.exitFullscreen();
+  }
+};
+
+// Copy room code on click
+roomCodeEl.onclick = async () => {
+  if (!roomCode || roomCode === '---') {
+    return; // No code to copy yet
+  }
+
+  try {
+    await navigator.clipboard.writeText(roomCode);
+
+    // Show notification
+    copyNotification.classList.add('show');
+
+    // Remove the class after animation completes
+    setTimeout(() => {
+      copyNotification.classList.remove('show');
+    }, 2000);
+  } catch (err) {
+    console.error('Failed to copy:', err);
+    alert('Failed to copy room code. Please copy manually: ' + roomCode);
   }
 };
 
