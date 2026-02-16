@@ -393,109 +393,103 @@ export default class LudoServer implements Party.Server {
     }
 
     async onAlarm() {
-        // Timer expired - bot takes over
-        console.log(`Turn timeout for ${this.gameState.currentTurn} - bot taking over`);
+        // Timer expired - check if it was a human timeout or just a bot step
+        const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
 
-        // Notify players about bot takeover
-        this.room.broadcast(JSON.stringify({
-            type: 'BOT_TAKEOVER',
-            player: this.gameState.currentTurn,
-            reason: 'Turn timeout (30 seconds)',
-        }));
+        if (!currentPlayer?.isBot) {
+            console.log(`Turn timeout for ${this.gameState.currentTurn} - bot taking over`);
 
-        // Execute bot action
-        await this.executeBotTurn();
-    }
-
-    private async executeBotTurn() {
-        if (this.gameState.gamePhase === 'FINISHED' || this.gameState.gamePhase === 'WAITING') {
-            return;
+            // Notify players about bot takeover
+            this.room.broadcast(JSON.stringify({
+                type: 'BOT_TAKEOVER',
+                player: this.gameState.currentTurn,
+                reason: 'Turn timeout',
+            }));
         }
 
-        const action = simpleBotDecide(this.gameState);
-        const BOT_ACTION_DELAY = 1000; // 1s lag for faster gameplay (max 3s rule)
+        // Execute bot action (tick)
+        await this.update();
+    }
 
-        if (action.type === 'ROLL') {
-            // Bot rolls
-            const player = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
-            if (!player) return;
-
-            // Let's use the authoritative `handleRollRequest` instead of the bot's generated value.
-            const rollResult = handleRollRequest(this.gameState, player.id);
-
-            if (rollResult.success) {
-                this.gameState = rollResult.newState;
-                const validPawnIds = getValidPawnIds(this.gameState);
-
-                this.room.broadcast(JSON.stringify({
-                    type: 'DICE_RESULT',
-                    diceValue: rollResult.diceValue,
-                    player: this.gameState.currentTurn,
-                    validPawnIds,
-                    isBot: true,
-                }));
-
-                if (validPawnIds.length === 0) {
-                    // No moves, end turn
-                    // Delay before skipping so user sees the dice
-                    setTimeout(() => {
-                        this.skipTurn();
-                        // skipTurn starts timer for NEXT player.
-                    }, BOT_ACTION_DELAY);
-                } else {
-                    // Schedule next step (Move)
-                    this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
-                }
-            } else {
-                console.error("Bot failed to roll:", rollResult.error);
-                this.skipTurn();
-            }
-
-        } else if (action.type === 'MOVE') {
-            const validMoves = getValidMoves(this.gameState);
-            // Verify the pawnId is valid
-            // The bot might choose a pawn.
-            // We need to ensure `action.pawnId` is valid.
-            if (!action.pawnId) {
-                this.skipTurn();
+    private async update() {
+        try {
+            if (this.gameState.gamePhase === 'FINISHED' || this.gameState.gamePhase === 'WAITING') {
                 return;
             }
 
-            const result = executeMove(this.gameState, action.pawnId!, validMoves);
+            const action = simpleBotDecide(this.gameState);
+            const BOT_ACTION_DELAY = 1000; // 1s lag for faster gameplay
 
-            if (result.success) {
-                this.gameState = result.newState;
+            if (action.type === 'ROLL') {
+                const player = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
+                if (!player) return;
 
-                this.room.broadcast(JSON.stringify({
-                    type: 'MOVE_EXECUTED',
-                    pawnId: action.pawnId,
-                    move: this.gameState.lastMove,
-                    extraTurn: result.extraTurn,
-                    isBot: true,
-                }));
+                // Use authoritative roll request
+                const rollResult = handleRollRequest(this.gameState, player.id);
 
-                if (result.extraTurn) {
-                    // Schedule next step (Roll again)
+                if (rollResult.success) {
+                    this.gameState = rollResult.newState;
+                    const validPawnIds = getValidPawnIds(this.gameState);
+
+                    this.room.broadcast(JSON.stringify({
+                        type: 'DICE_RESULT',
+                        diceValue: rollResult.diceValue,
+                        player: this.gameState.currentTurn,
+                        validPawnIds,
+                        isBot: true,
+                    }));
+
+                    // Schedule next tick to catch MOVE or SKIP
                     this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
                 } else {
-                    // Turn ends.
-                    // Start timer for next player (which will set appropriate alarm)
-                    // We can call it immediately or with small delay?
-                    // Let's call immediately, startTurnTimer handles the flow.
-                    if (this.gameState.gamePhase !== 'FINISHED') {
-                        this.startTurnTimer();
-                    }
+                    console.error("Bot failed to roll:", rollResult.error);
+                    this.skipTurn();
                 }
+
+            } else if (action.type === 'MOVE') {
+                // Ensure pawnId is present for MOVE action
+                if (!action.pawnId) {
+                    this.skipTurn();
+                    return;
+                }
+
+                const validMoves = getValidMoves(this.gameState);
+                const result = executeMove(this.gameState, action.pawnId, validMoves);
+
+                if (result.success) {
+                    this.gameState = result.newState;
+
+                    this.room.broadcast(JSON.stringify({
+                        type: 'MOVE_EXECUTED',
+                        pawnId: action.pawnId,
+                        move: this.gameState.lastMove,
+                        extraTurn: result.extraTurn,
+                        isBot: true,
+                    }));
+
+                    if (result.extraTurn) {
+                        // Schedule next tick for extra roll
+                        this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
+                    } else {
+                        // Turn ends, start timer for next player
+                        if (this.gameState.gamePhase !== 'FINISHED') {
+                            this.startTurnTimer();
+                        }
+                    }
+                } else {
+                    console.error("Bot failed valid move");
+                    this.skipTurn();
+                }
+
             } else {
-                console.error("Bot failed valid move");
+                // SKIP or No Action (e.g. rolled but no moves)
                 this.skipTurn();
             }
-        } else {
-            // SKIP or No Action
+
+        } catch (error) {
+            console.error("Bot crashed, skipping turn:", error);
             this.skipTurn();
         }
-
-        this.broadcastState();
     }
 
     private broadcastState() {
