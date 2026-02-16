@@ -1,19 +1,5 @@
 import { PlayerColor } from './types';
 
-/**
- * Ludo Board Layout Constants
- * 
- * Board positions:
- * - 0: Home/Base (pawn not on board)
- * - 1-52: Main track (shared by all players)
- * - 53-58: Home stretch (color-specific, leads to goal)
- * - 59: Goal (finished)
- * 
- * Each color has:
- * - A starting position on the main track (where they enter after rolling 6)
- * - A home entry position (where they leave main track to enter home stretch)
- */
-
 import {
     POSITION_HOME,
     POSITION_GOAL,

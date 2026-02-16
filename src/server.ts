@@ -30,6 +30,7 @@ export default class LudoServer implements Party.Server {
     roomCode: string;
     turnStartTime: number = 0;
     private skippedTurns: Map<string, number> = new Map();
+    private isProcessingTurn: boolean = false;
 
     constructor(readonly room: Party.Room) {
         this.roomCode = this.room.id;
@@ -72,12 +73,6 @@ export default class LudoServer implements Party.Server {
         }
 
         const parsed = result.data;
-
-        // Cancel timeout on any valid action from current player
-        // Note: We don't verify player here, but handleRoll/handleMove will verify turn and reset specific counters.
-        // Actually, we should probably ONLY cancel if it's a valid message?
-        // But let's leave this generic cancel for now, and handle specific resets in methods.
-        // this.cancelTurnTimer(); // MOVED to inside handlers to be safer/more specific
 
         try {
             switch (parsed.type) {
@@ -180,6 +175,18 @@ export default class LudoServer implements Party.Server {
     }
 
     private handleRoll(conn: Party.Connection) {
+        if (this.isProcessingTurn) {
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' }));
+            return;
+        }
+
+        // Validate that current turn is NOT a bot
+        const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
+        if (currentPlayer?.isBot) {
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'BOT_TURN', message: 'Wait for bot turn' }));
+            return;
+        }
+
         const result = handleRollRequest(this.gameState, conn.id);
 
         if (!result.success) {
@@ -220,9 +227,19 @@ export default class LudoServer implements Party.Server {
     }
 
     private handleMove(conn: Party.Connection, pawnId: string) {
+        if (this.isProcessingTurn) {
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' }));
+            return;
+        }
+
         const player = this.gameState.players.find(p => p.id === conn.id);
         if (!player) {
             conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: 'Player not found' }));
+            return;
+        }
+
+        if (player.isBot) {
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'BOT_TURN', message: 'Wait for bot turn' }));
             return;
         }
 
@@ -328,51 +345,65 @@ export default class LudoServer implements Party.Server {
     }
 
     async onAlarm() {
-        // Timer expired
-        const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
-
-        if (!currentPlayer) return;
-
-        if (currentPlayer.isBot) {
-            // Bot logic
-            await this.update();
+        // Prevent race conditions / re-entry
+        if (this.isProcessingTurn) {
+            console.warn("Alarm fired while turn is being processed. Ignoring to prevent race.");
             return;
         }
 
-        // Human player timed out
-        const currentSkips = (this.skippedTurns.get(currentPlayer.id) || 0) + 1;
-        this.skippedTurns.set(currentPlayer.id, currentSkips);
+        this.isProcessingTurn = true;
 
-        console.log(`Player ${currentPlayer.name} timed out. Skips: ${currentSkips}`);
+        try {
+            // Timer expired
+            const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
 
-        if (currentSkips >= 3) {
-            // Kick logic
-            const playerToKick = currentPlayer;
+            if (!currentPlayer) return;
 
-            // 1. Advance turn first to ensure game flow continues
-            this.skipTurn();
-
-            // 2. Remove player and their pawns
-            this.gameState.players = this.gameState.players.filter(p => p.id !== playerToKick.id);
-            this.gameState.pawns = this.gameState.pawns.filter(p => p.color !== playerToKick.color);
-
-            // 3. Notify everyone
-            this.room.broadcast(JSON.stringify({
-                type: 'PLAYER_KICKED',
-                playerId: playerToKick.id,
-                reason: 'AFK_TIMEOUT'
-            }));
-
-            this.broadcastState();
-
-            // Check if game should end due to lack of players?
-            if (this.gameState.players.length < 2) {
-                // Optionally handle game end here, but keeping it simple for now.
+            if (currentPlayer.isBot) {
+                // Bot logic
+                await this.update();
+                return;
             }
 
-        } else {
-            // Just skip turn
-            this.skipTurn();
+            // Human player timed out
+            const currentSkips = (this.skippedTurns.get(currentPlayer.id) || 0) + 1;
+            this.skippedTurns.set(currentPlayer.id, currentSkips);
+
+            console.log(`Player ${currentPlayer.name} timed out. Skips: ${currentSkips}`);
+
+            if (currentSkips >= 3) {
+                // Kick logic
+                const playerToKick = currentPlayer;
+
+                // 1. Advance turn first to ensure game flow continues
+                this.skipTurn();
+
+                // 2. Remove player and their pawns
+                this.gameState.players = this.gameState.players.filter(p => p.id !== playerToKick.id);
+                this.gameState.pawns = this.gameState.pawns.filter(p => p.color !== playerToKick.color);
+
+                // 3. Notify everyone
+                this.room.broadcast(JSON.stringify({
+                    type: 'PLAYER_KICKED',
+                    playerId: playerToKick.id,
+                    reason: 'AFK_TIMEOUT'
+                }));
+
+                this.broadcastState();
+
+                // Check if game should end due to lack of players?
+                if (this.gameState.players.length < 2) {
+                    // Optionally handle game end here, but keeping it simple for now.
+                }
+
+            } else {
+                // Just skip turn
+                this.skipTurn();
+            }
+        } catch (error) {
+            console.error("Error in onAlarm:", error);
+        } finally {
+            this.isProcessingTurn = false;
         }
     }
 
