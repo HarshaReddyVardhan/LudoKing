@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { getBoardPosition, getHomePosition, getPawn3DPosition } from './renderPath';
-import { BOARD } from './board';
-import { PlayerColor } from './types';
+import { getBoardPosition, getHomePosition, getPawn3DPosition } from './PathGenerator';
+import { BOARD } from '../../../src/shared/board';
 
-describe('renderPath', () => {
+describe('PathGenerator', () => {
     describe('getBoardPosition', () => {
         it('should return coordinates for index 1', () => {
             const pos = getBoardPosition(1);
@@ -20,7 +19,7 @@ describe('renderPath', () => {
 
     describe('getHomePosition', () => {
         it('should return different positions for different colors', () => {
-            const redPos = getHomePosition('RED', 0); // Start of home stretch
+            const redPos = getHomePosition('RED', 0);
             const bluePos = getHomePosition('BLUE', 0);
 
             expect(redPos).not.toEqual(bluePos);
@@ -48,11 +47,9 @@ describe('renderPath', () => {
         });
 
         it('should return main track position using board logic', () => {
-            // Test position 1 on valid board
             const track = getPawn3DPosition('RED', 1);
             expect(track).toBeDefined();
-            // Should match getBoardPosition(1) since Red start is 1, and offset is 1?
-            // Formula in renderPath: ((1 - 1 + 1 - 1) % 52) + 1 = 1.
+
             const raw = getBoardPosition(1);
             expect(track).toEqual(raw);
         });
