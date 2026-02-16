@@ -65,3 +65,97 @@ export interface MoveRequest {
 export interface AddBotRequest {
     type: 'ADD_BOT';
 }
+
+// Server -> Client Messages
+
+export interface RoomInfoMsg {
+    type: 'ROOM_INFO';
+    roomCode: string;
+    playerCount: number;
+    maxPlayers: number;
+    isFull: boolean;
+}
+
+export interface JoinSuccessMsg {
+    type: 'JOIN_SUCCESS';
+    player: Player;
+    roomCode: string;
+    reconnected?: boolean;
+}
+
+export interface JoinRejectedMsg {
+    type: 'JOIN_REJECTED';
+    error: string;
+}
+
+export interface PlayerJoinedMsg {
+    type: 'PLAYER_JOINED';
+    player: Player;
+    playerCount: number;
+}
+
+export interface SyncStateMsg {
+    type: 'SYNC_STATE';
+    state: GameState;
+}
+
+export interface DiceResultMsg {
+    type: 'DICE_RESULT';
+    diceValue: number;
+    player: PlayerColor;
+    validPawnIds: string[];
+    isBot?: boolean;
+}
+
+export interface MoveExecutedMsg {
+    type: 'MOVE_EXECUTED';
+    pawnId: string;
+    move: MoveLog | null;
+    extraTurn: boolean;
+    isBot?: boolean;
+}
+
+export interface TurnSkippedMsg {
+    type: 'TURN_SKIPPED';
+    reason: string;
+    nextPlayer: PlayerColor;
+}
+
+export interface PawnKilledMsg {
+    type: 'PAWN_KILLED';
+    pawnId: string; // The pawn that was killed
+    killerPawnId?: string; // The pawn that killed it (optional)
+    position: number; // Where the kill happened
+}
+
+export interface HomeRunMsg {
+    type: 'HOME_RUN';
+    pawnId: string;
+}
+
+export interface PlayerKickedMsg {
+    type: 'PLAYER_KICKED';
+    playerId: string;
+    reason: string;
+}
+
+export interface TurnTimerStartMsg {
+    type: 'TURN_TIMER_START';
+    player: PlayerColor;
+    timeoutMs: number;
+    startTime: number;
+}
+
+export type ServerMessage =
+    | RoomInfoMsg
+    | JoinSuccessMsg
+    | JoinRejectedMsg
+    | PlayerJoinedMsg
+    | SyncStateMsg
+    | DiceResultMsg
+    | MoveExecutedMsg
+    | TurnSkippedMsg
+    | PawnKilledMsg
+    | HomeRunMsg
+    | PlayerKickedMsg
+    | TurnTimerStartMsg;
