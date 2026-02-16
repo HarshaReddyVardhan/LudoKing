@@ -110,7 +110,7 @@ export function clearNotifications() {
 
 
 // Timer Animation
-let timerInterval: any = null;
+let timerInterval: number | null = null;
 export function startTimer(durationMs: number) {
     if (timerInterval) clearInterval(timerInterval);
     timerBar.style.width = '100%';
@@ -131,12 +131,19 @@ export function renderState(gameState: GameState | null, myColor: string | null,
     // Render Pawns
     const pawnsAtCell = new Map<string, Pawn[]>();
 
-    gameState.pawns.forEach(pawn => {
-        const coord = getGridCoord(pawn.color, pawn.position, pawn.pawnIndex);
-        const key = `${coord.r},${coord.c}`;
-        if (!pawnsAtCell.has(key)) pawnsAtCell.set(key, []);
-        pawnsAtCell.get(key)!.push(pawn);
-    });
+    // Null check for pawns array
+    if (gameState.pawns && Array.isArray(gameState.pawns)) {
+        gameState.pawns.forEach(pawn => {
+            // Null check for pawn properties
+            if (!pawn || typeof pawn.color !== 'string' || typeof pawn.position !== 'number' || typeof pawn.pawnIndex !== 'number') {
+                return; // Skip invalid pawns
+            }
+            const coord = getGridCoord(pawn.color, pawn.position, pawn.pawnIndex);
+            const key = `${coord.r},${coord.c}`;
+            if (!pawnsAtCell.has(key)) pawnsAtCell.set(key, []);
+            pawnsAtCell.get(key)!.push(pawn);
+        });
+    }
 
     pawnsAtCell.forEach((pawns, key) => {
         const [r, c] = key.split(',').map(Number);
@@ -146,6 +153,11 @@ export function renderState(gameState: GameState | null, myColor: string | null,
         const cell = board.children[index] as HTMLElement;
 
         pawns.forEach((pawn, idx) => {
+            // Null check for pawn
+            if (!pawn || !pawn.color || !pawn.id) {
+                return; // Skip invalid pawns
+            }
+
             // Wrapper for positioning
             const wrapper = document.createElement('div');
             wrapper.className = 'pawn-wrapper';
@@ -180,61 +192,75 @@ export function renderState(gameState: GameState | null, myColor: string | null,
     // Render User List (Sidebar Rows)
     playerInfoPanel.innerHTML = ''; // clear
 
-    gameState.players.forEach(p => {
-        // Container
-        const row = document.createElement('div');
-        row.className = `player-row ${p.color.toLowerCase()}`;
-        if (gameState?.currentTurn === p.color) {
-            row.classList.add('active');
-        }
+    // Null check for players array
+    if (gameState.players && Array.isArray(gameState.players)) {
+        gameState.players.forEach(p => {
+            // Null check for player properties
+            if (!p || !p.color || !p.name) {
+                return; // Skip invalid players
+            }
 
-        // Avatar
-        const avatar = document.createElement('div');
-        avatar.className = 'player-avatar';
-        avatar.textContent = p.name.substring(0, 1).toUpperCase();
+            // Container
+            const row = document.createElement('div');
+            row.className = `player-row ${p.color.toLowerCase()}`;
+            if (gameState?.currentTurn === p.color) {
+                row.classList.add('active');
+            }
 
-        // Info Text
-        const info = document.createElement('div');
-        info.className = 'player-info-text';
+            // Avatar
+            const avatar = document.createElement('div');
+            avatar.className = 'player-avatar';
+            avatar.textContent = p.name.substring(0, 1).toUpperCase();
 
-        const nameEl = document.createElement('div');
-        nameEl.className = 'player-name';
-        nameEl.textContent = p.name + (p.color === myColor ? " (You)" : "");
+            // Info Text
+            const info = document.createElement('div');
+            info.className = 'player-info-text';
 
-        const statusText = document.createElement('div');
-        statusText.className = 'player-status';
-        statusText.textContent = p.isBot ? "Bot" : (p.isActive ? "Online" : "Away");
+            const nameEl = document.createElement('div');
+            nameEl.className = 'player-name';
+            nameEl.textContent = p.name + (p.color === myColor ? " (You)" : "");
 
-        info.appendChild(nameEl);
-        info.appendChild(statusText);
+            const statusText = document.createElement('div');
+            statusText.className = 'player-status';
+            // Null check for isBot and isActive
+            statusText.textContent = p.isBot ? "Bot" : (p.isActive ? "Online" : "Away");
 
-        row.appendChild(avatar);
-        row.appendChild(info);
+            info.appendChild(nameEl);
+            info.appendChild(statusText);
 
-        playerInfoPanel.appendChild(row);
-    });
+            row.appendChild(avatar);
+            row.appendChild(info);
+
+            playerInfoPanel.appendChild(row);
+        });
+    }
 
     // UI Updates: Turn Indicator with NAME
-    const currentPlayer = gameState.players.find(p => p.color === gameState?.currentTurn);
+    const currentPlayer = gameState.players && Array.isArray(gameState.players)
+        ? gameState.players.find(p => p && p.color === gameState?.currentTurn)
+        : undefined;
     const isMyTurn = gameState.currentTurn === myColor;
 
     if (isMyTurn) {
         statusEl.textContent = "Your Turn!";
         statusEl.style.color = '#4ade80';
     } else {
-        statusEl.textContent = `${currentPlayer?.name || gameState.currentTurn}'s Turn`;
+        const turnName = currentPlayer?.name || gameState.currentTurn || 'Unknown';
+        statusEl.textContent = `${turnName}'s Turn`;
         statusEl.style.color = '#ccc';
     }
 
     // Roll Button Logic
-    if (isMyTurn && gameState.gamePhase === 'ROLLING') {
+    // Null check for gamePhase
+    const gamePhase = gameState.gamePhase || 'ROLLING';
+    if (isMyTurn && gamePhase === 'ROLLING') {
         rollBtn.disabled = false;
         rollBtn.textContent = "ROLL DICE";
         rollBtn.style.opacity = '1';
     } else {
         rollBtn.disabled = true;
         rollBtn.style.opacity = '0.5';
-        if (gameState.gamePhase === 'MOVING') {
+        if (gamePhase === 'MOVING') {
             rollBtn.textContent = "MOVE PAWN";
         } else {
             rollBtn.textContent = "WAITING";
