@@ -1,5 +1,5 @@
 import type * as Party from "partykit/server";
-import { GameState } from "./shared/types";
+import { GameState, ClientMessage, ClientMessageSchema } from "./shared/types";
 import { createInitialState } from "./logic/gameState";
 import { handleRollRequest } from "./logic/diceEngine";
 import { getValidMoves, getValidPawnIds, executeMove } from "./logic/moveValidation";
@@ -21,29 +21,8 @@ import { simpleBotDecide } from "./logic/simpleBot";
 const TURN_TIMEOUT_MS = 30 * 1000;
 
 // Message types from client
-interface RollRequest {
-    type: 'ROLL_REQUEST';
-}
+// Local interfaces removed in favor of shared types
 
-interface JoinRequest {
-    type: 'JOIN_REQUEST';
-    name: string;
-    create?: boolean;  // Set to true when creating a new room
-    playerId?: string; // For reconnection
-    totalPlayers?: number; // For room creation
-    botCount?: number; // For room creation
-}
-
-interface MoveRequest {
-    type: 'MOVE_REQUEST';
-    pawnId: string;
-}
-
-interface StartGameRequest {
-    type: 'START_GAME';
-}
-
-type ClientMessage = RollRequest | JoinRequest | MoveRequest | StartGameRequest;
 
 export default class LudoServer implements Party.Server {
     gameState: GameState;
@@ -67,13 +46,22 @@ export default class LudoServer implements Party.Server {
     }
 
     onMessage(message: string, sender: Party.Connection) {
-        let parsed: ClientMessage;
+        let json: unknown;
         try {
-            parsed = JSON.parse(message);
+            json = JSON.parse(message);
         } catch {
             sender.send(JSON.stringify({ type: 'ERROR', error: 'Invalid JSON' }));
             return;
         }
+
+        const result = ClientMessageSchema.safeParse(json);
+        if (!result.success) {
+            console.error("Validation error:", result.error);
+            sender.send(JSON.stringify({ type: 'ERROR', error: 'Invalid message format' }));
+            return;
+        }
+
+        const parsed = result.data;
 
         // Cancel timeout on any valid action from current player
         // Note: We don't verify player here, but handleRoll/handleMove will verify turn and reset specific counters.

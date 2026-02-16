@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type PlayerColor = 'RED' | 'BLUE' | 'GREEN' | 'YELLOW';
 
 export const COLORS: PlayerColor[] = ['RED', 'BLUE', 'GREEN', 'YELLOW'];
@@ -45,26 +47,38 @@ export interface GameState {
     lastRollTime?: number; // For debounce
 }
 
+
 // Messages
-export interface JoinRequest {
-    type: 'JOIN_REQUEST';
-    name: string;
-    create?: boolean; // If true, allows creating a new room
-    playerId?: string; // For session persistence
-}
+export const JoinRequestSchema = z.object({
+    type: z.literal('JOIN_REQUEST'),
+    name: z.string(),
+    create: z.boolean().optional(),
+    playerId: z.string().optional(), // For session persistence
+    totalPlayers: z.number().optional(), // For room creation
+    botCount: z.number().optional() // For room creation
+});
+export type JoinRequest = z.infer<typeof JoinRequestSchema>;
 
-export interface RollRequest {
-    type: 'ROLL_REQUEST';
-}
+export const RollRequestSchema = z.object({
+    type: z.literal('ROLL_REQUEST')
+});
+export type RollRequest = z.infer<typeof RollRequestSchema>;
 
-export interface MoveRequest {
-    type: 'MOVE_REQUEST';
-    pawnId: string;
-}
+export const MoveRequestSchema = z.object({
+    type: z.literal('MOVE_REQUEST'),
+    pawnId: z.string()
+});
+export type MoveRequest = z.infer<typeof MoveRequestSchema>;
 
-export interface AddBotRequest {
-    type: 'ADD_BOT';
-}
+export const AddBotRequestSchema = z.object({
+    type: z.literal('ADD_BOT')
+});
+export type AddBotRequest = z.infer<typeof AddBotRequestSchema>;
+
+export const StartGameRequestSchema = z.object({
+    type: z.literal('START_GAME')
+});
+export type StartGameRequest = z.infer<typeof StartGameRequestSchema>;
 
 // Server -> Client Messages
 
@@ -174,8 +188,12 @@ export type ServerMessage =
     | ErrorMsg;
 
 // Client -> Server Messages
-export type ClientMessage =
-    | JoinRequest
-    | RollRequest
-    | MoveRequest
-    | AddBotRequest;
+export const ClientMessageSchema = z.discriminatedUnion('type', [
+    JoinRequestSchema,
+    RollRequestSchema,
+    MoveRequestSchema,
+    AddBotRequestSchema,
+    StartGameRequestSchema
+]);
+
+export type ClientMessage = z.infer<typeof ClientMessageSchema>;
