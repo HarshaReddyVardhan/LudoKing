@@ -40,6 +40,8 @@ export interface GameState {
     lastUpdate: number;
     lastMove: MoveLog | null; // For Rewind/History
     winner?: PlayerColor;
+    consecutiveSixes?: number; // Track for 3-sixes rule
+    lastRollTime?: number; // For debounce
 }
 
 // Messages

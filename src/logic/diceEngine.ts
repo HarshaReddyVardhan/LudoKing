@@ -1,4 +1,4 @@
-import { GameState, PlayerColor } from '../shared/types';
+import { GameState, PlayerColor, COLORS } from '../shared/types';
 
 /**
  * Generates a random dice value between 1 and 6 (inclusive).
@@ -28,43 +28,81 @@ export function handleRollRequest(
     state: GameState,
     requestingPlayerId: string
 ): { success: boolean; newState: GameState; diceValue?: number; error?: string } {
-    // Find the requesting player
-    const player = state.players.find(p => p.id === requestingPlayerId);
+    const { players, currentTurn, gamePhase, lastRollTime = 0 } = state;
 
-    if (!player) {
-        return { success: false, newState: state, error: 'Player not found' };
+    // Debounce: Prevent spam clicking (300ms)
+    if (Date.now() - lastRollTime < 300) {
+        // Return existing state without error to ignore spam, or error
+        return { success: false, newState: state, error: 'Rolling too fast' };
     }
 
-    // Check if it's this player's turn
-    if (player.color !== state.currentTurn) {
-        return { success: false, newState: state, error: 'Not your turn' };
-    }
+    const player = players.find(p => p.id === requestingPlayerId);
 
-    // Check game phase - must be ROLLING to roll
-    if (state.gamePhase !== 'ROLLING') {
+    if (!player) return { success: false, newState: state, error: 'Player not found' };
+    if (player.color !== currentTurn) return { success: false, newState: state, error: 'Not your turn' };
+    if (gamePhase !== 'ROLLING') {
         return {
             success: false,
             newState: state,
-            error: `Cannot roll in ${state.gamePhase} phase. Current dice: ${state.currentDiceValue}`
+            error: `Cannot roll in ${gamePhase} phase. Current dice: ${state.currentDiceValue}`
         };
     }
 
-    // Check factor: Does player have 3 or more pawns in base (position 0)?
+    // Weight 6 if 3+ pawns in base
     const pawnsInZero = state.pawns.filter(p => p.color === player.color && p.position === 0).length;
-    const shouldWeightSix = pawnsInZero >= 3;
+    const diceValue = rollDice(pawnsInZero >= 3);
 
-    // Generate the dice value
-    const diceValue = rollDice(shouldWeightSix);
+    // 3 Sixes Consecutive Rule
+    let consecutiveSixes = state.consecutiveSixes || 0;
+    if (diceValue === 6) {
+        consecutiveSixes++;
+    } else {
+        consecutiveSixes = 0;
+    }
 
-    // Lock the state to MOVING phase (player must move before rolling again)
-    const newState: GameState = {
-        ...state,
-        currentDiceValue: diceValue,
-        gamePhase: 'MOVING',
-        lastUpdate: Date.now(),
+    const now = Date.now();
+
+    // If rolled 3 sixes, turn ends immediately
+    if (consecutiveSixes >= 3) {
+        // Find next active player
+        const currentColorIdx = COLORS.indexOf(currentTurn);
+        let nextTurn = currentTurn;
+        for (let i = 1; i <= 4; i++) {
+            const nextColor = COLORS[(currentColorIdx + i) % 4];
+            if (players.some(p => p.color === nextColor && p.isActive)) {
+                nextTurn = nextColor;
+                break;
+            }
+        }
+
+        return {
+            success: true,
+            diceValue, // Return the 6 so UI can show it briefly
+            newState: {
+                ...state,
+                currentDiceValue: null, // Reset immediately
+                gamePhase: 'ROLLING',
+                currentTurn: nextTurn,
+                lastUpdate: now,
+                consecutiveSixes: 0,
+                lastRollTime: now,
+            }
+        };
+    }
+
+    // Normal successful roll
+    return {
+        success: true,
+        newState: {
+            ...state,
+            currentDiceValue: diceValue,
+            gamePhase: 'MOVING',
+            lastUpdate: now,
+            consecutiveSixes,
+            lastRollTime: now,
+        },
+        diceValue
     };
-
-    return { success: true, newState, diceValue };
 }
 
 /**
@@ -72,11 +110,14 @@ export function handleRollRequest(
  * This is called after a valid move to allow the next roll.
  */
 export function resetToRollingPhase(state: GameState, nextTurn: PlayerColor): GameState {
+    const isSameTurn = state.currentTurn === nextTurn;
     return {
         ...state,
         currentDiceValue: null,
         gamePhase: 'ROLLING',
         currentTurn: nextTurn,
         lastUpdate: Date.now(),
+        // Reset consecutive sixes if turn changes
+        consecutiveSixes: isSameTurn ? (state.consecutiveSixes || 0) : 0,
     };
 }
