@@ -14,12 +14,21 @@ import { PlayerColor } from './types';
  * - A home entry position (where they leave main track to enter home stretch)
  */
 
+import {
+    POSITION_HOME,
+    POSITION_GOAL,
+    BOARD_PATH_LENGTH,
+    HOME_STRETCH_START,
+    HOME_STRETCH_END,
+    SAFE_ZONES
+} from './constants';
+
 export const BOARD = {
-    HOME: 0,
-    GOAL: 59,
-    MAIN_TRACK_LENGTH: 52,
-    HOME_STRETCH_START: 53,
-    HOME_STRETCH_END: 58,
+    HOME: POSITION_HOME,
+    GOAL: POSITION_GOAL,
+    MAIN_TRACK_LENGTH: BOARD_PATH_LENGTH,
+    HOME_STRETCH_START: HOME_STRETCH_START,
+    HOME_STRETCH_END: HOME_STRETCH_END,
 
     // Starting positions on the main track (1-indexed, where pawn enters after leaving base)
     START_POSITIONS: {
@@ -38,7 +47,7 @@ export const BOARD = {
     } as Record<PlayerColor, number>,
 
     // Safe squares where pawns cannot be captured
-    SAFE_SQUARES: [1, 9, 14, 22, 27, 35, 40, 48] as readonly number[],
+    SAFE_SQUARES: SAFE_ZONES as readonly number[],
 } as const;
 
 /**

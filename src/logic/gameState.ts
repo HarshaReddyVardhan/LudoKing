@@ -1,4 +1,5 @@
 import { GameState, Player, Pawn, PlayerColor, COLORS } from '../shared/types';
+import { PAWNS_PER_PLAYER, POSITION_GOAL, POSITION_HOME } from '../shared/constants';
 
 export function createInitialState(roomCode: string): GameState {
     return {
@@ -25,10 +26,10 @@ export function createPlayer(id: string, name: string, color: PlayerColor): Play
 
 export function initializePawns(color: PlayerColor): Pawn[] {
     // Create 4 pawns for the color, initially at position 0 (Base)
-    return Array.from({ length: 4 }).map((_, index) => ({
+    return Array.from({ length: PAWNS_PER_PLAYER }).map((_, index) => ({
         id: `${color}_${index}`,
         color,
-        position: 0,
+        position: POSITION_HOME,
         pawnIndex: index,
     }));
 }
@@ -43,7 +44,7 @@ export function checkWinCondition(state: GameState): GameState {
 
         // Check if all 4 pawns are at position 59 (Goal)
         const playerPawns = state.pawns.filter(p => p.color === player.color);
-        const allFinished = playerPawns.length === 4 && playerPawns.every(p => p.position === 59);
+        const allFinished = playerPawns.length === PAWNS_PER_PLAYER && playerPawns.every(p => p.position === POSITION_GOAL);
 
         if (allFinished) {
             player.rank = nextRank;

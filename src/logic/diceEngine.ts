@@ -1,4 +1,5 @@
 import { GameState, PlayerColor, COLORS } from '../shared/types';
+import { MAX_CONSECUTIVE_SIXES, ROLL_DEBOUNCE_MS, POSITION_HOME, DICE_MAX_VALUE } from '../shared/constants';
 
 /**
  * Generates a random dice value between 1 and 6 (inclusive).
@@ -8,11 +9,11 @@ import { GameState, PlayerColor, COLORS } from '../shared/types';
 export function rollDice(weightSix: boolean = false): number {
     if (weightSix) {
         // 40% chance of rolling a 6
-        if (Math.random() < 0.4) return 6;
+        if (Math.random() < 0.4) return DICE_MAX_VALUE;
         // Remaining 60% split among 1-5
-        return Math.floor(Math.random() * 5) + 1;
+        return Math.floor(Math.random() * (DICE_MAX_VALUE - 1)) + 1;
     }
-    return Math.floor(Math.random() * 6) + 1;
+    return Math.floor(Math.random() * DICE_MAX_VALUE) + 1;
 }
 
 /**
@@ -31,7 +32,7 @@ export function handleRollRequest(
     const { players, currentTurn, gamePhase, lastRollTime = 0 } = state;
 
     // Debounce: Prevent spam clicking (300ms)
-    if (Date.now() - lastRollTime < 300) {
+    if (Date.now() - lastRollTime < ROLL_DEBOUNCE_MS) {
         // Return existing state without error to ignore spam, or error
         return { success: false, newState: state, error: 'Rolling too fast' };
     }
@@ -49,12 +50,12 @@ export function handleRollRequest(
     }
 
     // Weight 6 if 3+ pawns in base
-    const pawnsInZero = state.pawns.filter(p => p.color === player.color && p.position === 0).length;
+    const pawnsInZero = state.pawns.filter(p => p.color === player.color && p.position === POSITION_HOME).length;
     const diceValue = rollDice(pawnsInZero >= 3);
 
     // 3 Sixes Consecutive Rule
     let consecutiveSixes = state.consecutiveSixes || 0;
-    if (diceValue === 6) {
+    if (diceValue === DICE_MAX_VALUE) {
         consecutiveSixes++;
     } else {
         consecutiveSixes = 0;
@@ -63,7 +64,7 @@ export function handleRollRequest(
     const now = Date.now();
 
     // If rolled 3 sixes, turn ends immediately
-    if (consecutiveSixes >= 3) {
+    if (consecutiveSixes >= MAX_CONSECUTIVE_SIXES) {
         // Find next active player
         const currentColorIdx = COLORS.indexOf(currentTurn);
         let nextTurn = currentTurn;

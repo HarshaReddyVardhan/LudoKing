@@ -1,5 +1,6 @@
 import { GameState, Pawn, PlayerColor, MoveLog } from '../shared/types';
 import { BOARD, getNextTurn, isSafeSquare, toGlobalPosition } from '../shared/board';
+import { SAFE_ZONES, ENTER_BOARD_DICE_ROLL } from '../shared/constants';
 
 export interface ValidMove {
     pawnId: string;
@@ -18,7 +19,7 @@ export function getValidMoves(state: GameState): ValidMove[] {
     if (!dice) return [];
 
     // Safe Squares: Stars at 1, 9, 14 etc
-    const isSafe = (i: number) => [1, 9, 14, 22, 27, 35, 40, 48].includes(i);
+    const isSafe = (i: number) => SAFE_ZONES.includes(i);
     const moves: ValidMove[] = [];
 
     pawns.filter(p => p.color === turn).forEach(p => {
@@ -27,7 +28,7 @@ export function getValidMoves(state: GameState): ValidMove[] {
 
         // Path Logic
         if (pos === BOARD.HOME) {
-            if (dice === 6) to = BOARD.START_POSITIONS[color];
+            if (dice === ENTER_BOARD_DICE_ROLL) to = BOARD.START_POSITIONS[color];
             else return;
         } else if (pos === BOARD.GOAL) {
             return;
@@ -110,7 +111,7 @@ export function executeMove(
     }
 
     // Determine if player gets extra turn (rolled 6, captured, or reached goal)
-    const extraTurn = state.currentDiceValue === 6 || move.willCapture || move.willReachGoal;
+    const extraTurn = state.currentDiceValue === ENTER_BOARD_DICE_ROLL || move.willCapture || move.willReachGoal;
 
     // Create move log
     const lastMove: MoveLog = {

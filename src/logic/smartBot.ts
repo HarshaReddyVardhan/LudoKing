@@ -3,6 +3,7 @@ import { BotAction } from './simpleBot';
 import { getValidMoves, ValidMove } from './moveValidation';
 import { rollDice } from './diceEngine';
 import { BOARD, toGlobalPosition, isSafeSquare } from '../shared/board';
+import { DICE_MAX_VALUE } from '../shared/constants';
 
 /**
  * Calculates how far a position is from the player's start.
@@ -10,7 +11,7 @@ import { BOARD, toGlobalPosition, isSafeSquare } from '../shared/board';
  */
 function getDistanceFromStart(pos: number, color: PlayerColor): number {
     if (pos === BOARD.HOME) return 0;
-    if (pos === BOARD.GOAL) return BOARD.MAIN_TRACK_LENGTH + 6; // Goal is max distance
+    if (pos === BOARD.GOAL) return BOARD.MAIN_TRACK_LENGTH + DICE_MAX_VALUE; // Goal is max distance
 
     if (pos >= BOARD.HOME_STRETCH_START) {
         // Distance on main track portion (52) + distance into home stretch
@@ -105,7 +106,7 @@ function scoreMove(move: ValidMove, state: GameState, weights: BotWeights): numb
             // wait, if I am at 10, and they are at 4. 10-4 = 6. They roll 6, they catch me.
             // So if `myGlobal - oppGlobal` is 1..6, I am in danger.
 
-            if (distance >= 1 && distance <= 6) {
+            if (distance >= 1 && distance <= DICE_MAX_VALUE) {
                 // Apply penalty for each opponent in range
                 score -= weights.riskPenalty;
             }

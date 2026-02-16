@@ -1,4 +1,5 @@
 import { PlayerColor } from './types';
+import { BOARD_PATH_LENGTH, HOME_STRETCH_START, POSITION_GOAL, POSITION_HOME } from './constants';
 
 /**
  * Board Mapping - Single Source of Truth
@@ -60,14 +61,15 @@ export interface Coordinate {
  */
 export function getGridCoord(color: string, position: number, pawnIndex: number = 0): Coordinate {
     // 0 = Base
-    if (position === 0) return getBaseCoord(color, pawnIndex);
+    if (position === POSITION_HOME) return getBaseCoord(color, pawnIndex);
 
     // 59 = Goal
-    if (position === 59) return { r: 8, c: 8 };
+    if (position === POSITION_GOAL) return { r: 8, c: 8 };
 
     // 53-58 = Home Stretch
-    if (position >= 53) {
-        return getHomeStretchCoord(color, position - 53); // 0-5 index
+    // 53-58 = Home Stretch
+    if (position >= HOME_STRETCH_START) {
+        return getHomeStretchCoord(color, position - HOME_STRETCH_START); // 0-5 index
     }
 
     // 1-52 = Main Track
@@ -85,7 +87,7 @@ export function getGridCoord(color: string, position: number, pawnIndex: number 
     }
 
     // Calculate grid index: (RelativePos - 1 + Offset) % 52
-    const loopIndex = (position - 1 + offset) % 52;
+    const loopIndex = (position - 1 + offset) % BOARD_PATH_LENGTH;
     return GLOBAL_TRACK[loopIndex];
 }
 
