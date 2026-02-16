@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { simpleBotDecide, simpleBotDecideWeighted } from './simpleBot';
+import { SimpleBot, WeightedSimpleBot } from './simpleBot';
 import { createInitialState, createPlayer, initializePawns } from './gameState';
 import { GameState } from '../shared/types';
 
@@ -23,7 +23,8 @@ describe('Simple Bot', () => {
             const state = createTestState();
             state.gamePhase = 'ROLLING';
 
-            const action = simpleBotDecide(state);
+            const bot = new SimpleBot();
+            const action = bot.computeNextMove(state, 'RED');
 
             expect(action.type).toBe('ROLL');
             expect(action.diceValue).toBeGreaterThanOrEqual(1);
@@ -35,7 +36,8 @@ describe('Simple Bot', () => {
             state.gamePhase = 'MOVING';
             state.currentDiceValue = 6;
 
-            const action = simpleBotDecide(state);
+            const bot = new SimpleBot();
+            const action = bot.computeNextMove(state, 'RED');
 
             expect(action.type).toBe('MOVE');
             expect(action.pawnId).toBeDefined();
@@ -47,7 +49,8 @@ describe('Simple Bot', () => {
             state.gamePhase = 'MOVING';
             state.currentDiceValue = 3; // Can't exit home with 3
 
-            const action = simpleBotDecide(state);
+            const bot = new SimpleBot();
+            const action = bot.computeNextMove(state, 'RED');
 
             expect(action.type).toBe('SKIP');
         });
@@ -56,10 +59,11 @@ describe('Simple Bot', () => {
             const state = createTestState();
             state.gamePhase = 'WAITING';
 
-            expect(simpleBotDecide(state).type).toBe('SKIP');
+            const bot = new SimpleBot();
+            expect(bot.computeNextMove(state, 'RED').type).toBe('SKIP');
 
             state.gamePhase = 'FINISHED';
-            expect(simpleBotDecide(state).type).toBe('SKIP');
+            expect(bot.computeNextMove(state, 'RED').type).toBe('SKIP');
         });
     });
 
@@ -71,7 +75,8 @@ describe('Simple Bot', () => {
             // Put a pawn one step from goal
             state.pawns[0].position = 58; // HOME_STRETCH_END
 
-            const action = simpleBotDecideWeighted(state);
+            const bot = new WeightedSimpleBot();
+            const action = bot.computeNextMove(state, 'RED');
 
             expect(action.type).toBe('MOVE');
             expect(action.pawnId).toBe('RED_0');

@@ -3,10 +3,16 @@ import type { ServerMessage } from '../../src/shared/types';
 const PARTYKIT_HOST = 'localhost:1999';
 
 let socket: WebSocket | null = null;
+let currentRoom: string | null = null;
+let currentMessageHandler: MessageHandler | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_DELAY = 10000;
 
 type MessageHandler = (data: ServerMessage) => void;
 
 export function connect(joinedRoom: string, onMessage: MessageHandler) {
+    currentRoom = joinedRoom;
+    currentMessageHandler = onMessage;
     const url = `ws://${PARTYKIT_HOST}/parties/main/${joinedRoom}`;
     console.log('Connecting to', url);
 
@@ -14,12 +20,32 @@ export function connect(joinedRoom: string, onMessage: MessageHandler) {
 
     socket.onopen = () => {
         console.log('Connected');
+        reconnectAttempts = 0;
     };
 
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         onMessage(data);
     };
+
+    socket.onclose = (event) => {
+        if (!event.wasClean) {
+            console.log('Connection lost. Reconnecting...');
+            scheduleReconnect();
+        }
+    };
+}
+
+function scheduleReconnect() {
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
+    console.log(`Reconnecting in ${delay}ms...`);
+
+    setTimeout(() => {
+        reconnectAttempts++;
+        if (currentRoom && currentMessageHandler) {
+            connect(currentRoom, currentMessageHandler);
+        }
+    }, delay);
 }
 
 export function sendJoinRequest(name: string, create: boolean, playerId?: string | null, totalPlayers?: number, botCount?: number) {

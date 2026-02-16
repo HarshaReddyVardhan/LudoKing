@@ -15,7 +15,7 @@ import {
     createJoinRejectedMessage,
     deleteRoom
 } from "./room/roomUtils";
-import { simpleBotDecide } from "./logic/simpleBot";
+import { SimpleBot } from "./logic/simpleBot";
 
 // Turn timeout in milliseconds (30 seconds)
 // Turn timeout in milliseconds (2 minutes)
@@ -370,7 +370,8 @@ export default class LudoServer implements Party.Server {
                 return;
             }
 
-            const action = simpleBotDecide(this.gameState);
+            const bot = new SimpleBot();
+            const action = bot.computeNextMove(this.gameState, this.gameState.currentTurn);
             const BOT_ACTION_DELAY = 1000; // 1s lag for faster gameplay
 
             if (action.type === 'ROLL') {

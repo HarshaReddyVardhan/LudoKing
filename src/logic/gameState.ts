@@ -35,31 +35,48 @@ export function initializePawns(color: PlayerColor): Pawn[] {
 }
 
 export function checkWinCondition(state: GameState): GameState {
-    // 1. Check for players who have finished
-    const finishedPlayers = state.players.filter(p => p.rank?.valueOf()).length;
-    let nextRank = finishedPlayers + 1;
+    const finishedPlayersCount = state.players.filter(p => p.rank?.valueOf()).length;
+    let nextRank = finishedPlayersCount + 1;
+    let playersChanged = false;
+    let rankUpdatedInLoop = false;
 
-    for (const player of state.players) {
-        if (player.rank) continue; // Already ranked
+    // Create new players array with updated ranks
+    const newPlayers = state.players.map(player => {
+        if (player.rank) return player; // Already ranked
 
         // Check if all 4 pawns are at position 59 (Goal)
         const playerPawns = state.pawns.filter(p => p.color === player.color);
         const allFinished = playerPawns.length === PAWNS_PER_PLAYER && playerPawns.every(p => p.position === POSITION_GOAL);
 
         if (allFinished) {
-            player.rank = nextRank;
-            nextRank++;
+            playersChanged = true;
+            rankUpdatedInLoop = true;
+            return { ...player, rank: nextRank++ };
         }
-    }
+        return player;
+    });
 
     // 2. Check if game should end
-    const totalPlayers = state.players.length;
-    const playersRemaining = state.players.filter(p => !p.rank).length;
+    const totalPlayers = newPlayers.length;
+    const playersRemaining = newPlayers.filter(p => !p.rank).length;
+    let newGamePhase = state.gamePhase;
+    let phaseChanged = false;
 
     // Logic: If there's only 1 player left (and we started with > 1), game over.
     // Or if started with 1 player and 0 remain.
     if ((totalPlayers > 1 && playersRemaining <= 1) || (totalPlayers === 1 && playersRemaining === 0)) {
-        state.gamePhase = 'FINISHED';
+        if (newGamePhase !== 'FINISHED') {
+            newGamePhase = 'FINISHED';
+            phaseChanged = true;
+        }
+    }
+
+    if (playersChanged || phaseChanged) {
+        return {
+            ...state,
+            players: newPlayers,
+            gamePhase: newGamePhase
+        };
     }
 
     return state;

@@ -1,6 +1,6 @@
 
 import { describe, it, expect, vi } from 'vitest';
-import { smartBotDecide } from './smartBot';
+import { SmartBot } from './smartBot';
 import { GameState, PlayerColor, Pawn } from '../shared/types';
 import { BOARD } from '../shared/board';
 
@@ -22,7 +22,8 @@ describe('smartBotDecide', () => {
 
     it('should roll dice if in ROLLING phase', () => {
         const state = createState('ROLLING', null, 'RED', []);
-        const action = smartBotDecide(state);
+        const bot = new SmartBot();
+        const action = bot.computeNextMove(state, 'RED');
         expect(action.type).toBe('ROLL');
         expect(action.diceValue).toBeGreaterThanOrEqual(1);
     });
@@ -34,7 +35,8 @@ describe('smartBotDecide', () => {
         const redPawn2Distractor: Pawn = { id: 'RED_2', color: 'RED', position: 20, pawnIndex: 1 };
 
         const state = createState('MOVING', 1, 'RED', [redPawn, bluePawnTarget, redPawn2Distractor]);
-        const action = smartBotDecide(state);
+        const bot = new SmartBot();
+        const action = bot.computeNextMove(state, 'RED');
 
         expect(action.type).toBe('MOVE');
         expect(action.pawnId).toBe('RED_1');
@@ -46,7 +48,8 @@ describe('smartBotDecide', () => {
         const redPawn2: Pawn = { id: 'RED_2', color: 'RED', position: 40, pawnIndex: 1 };
 
         const state = createState('MOVING', 1, 'RED', [redPawn1, redPawn2]);
-        const action = smartBotDecide(state);
+        const bot = new SmartBot();
+        const action = bot.computeNextMove(state, 'RED');
 
         expect(action.type).toBe('MOVE');
         expect(action.pawnId).toBe('RED_1');
@@ -58,7 +61,8 @@ describe('smartBotDecide', () => {
         const redPawn2: Pawn = { id: 'RED_2', color: 'RED', position: 10, pawnIndex: 1 };
 
         const state = createState('MOVING', 6, 'RED', [redPawn1, redPawn2]);
-        const action = smartBotDecide(state);
+        const bot = new SmartBot();
+        const action = bot.computeNextMove(state, 'RED');
 
         expect(action.type).toBe('MOVE');
         expect(action.pawnId).toBe('RED_1');
@@ -73,7 +77,8 @@ describe('smartBotDecide', () => {
         const redPawn2: Pawn = { id: 'RED_BEHIND', color: 'RED', position: 5, pawnIndex: 1 };
 
         const state = createState('MOVING', 2, 'RED', [redPawn1, redPawn2]);
-        const action = smartBotDecide(state);
+        const bot = new SmartBot();
+        const action = bot.computeNextMove(state, 'RED');
 
         expect(action.type).toBe('MOVE');
         expect(action.pawnId).toBe('RED_ADVANCED');
