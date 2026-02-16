@@ -36,7 +36,7 @@ function handleMessage(data: ServerMessage) {
 
     case 'DICE_RESULT':
       UI.diceDisplay.textContent = data.diceValue.toString();
-      validPawnIds = data.validPawnIds || [];
+      validPawnIds = Array.isArray(data.validPawnIds) ? data.validPawnIds : [];
       UI.renderState(gameState, myColor, validPawnIds); // Update highlights
 
       UI.showNotification(`${data.player} ROLLED`, data.diceValue.toString());

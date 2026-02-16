@@ -179,7 +179,7 @@ export function renderState(gameState: GameState | null, myColor: string | null,
             // Check if movable
             if (gameState?.currentTurn === myColor &&
                 gameState.gamePhase === 'MOVING' &&
-                validPawnIds.includes(pawn.id)) {
+                Array.isArray(validPawnIds) && validPawnIds.includes(pawn.id)) {
                 el.className += ' clickable';
                 el.dataset.pawnId = pawn.id;
             }

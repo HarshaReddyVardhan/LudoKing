@@ -415,6 +415,7 @@ export default class LudoServer implements Party.Server {
 
             const bot = new SimpleBot();
             const action = bot.computeNextMove(this.gameState, this.gameState.currentTurn);
+
             const BOT_ACTION_DELAY = 1000; // 1s lag for faster gameplay
 
             if (action.type === 'ROLL') {
