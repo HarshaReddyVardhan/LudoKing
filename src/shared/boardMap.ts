@@ -7,6 +7,7 @@ import { BOARD_PATH_LENGTH, HOME_STRETCH_START, POSITION_GOAL, POSITION_HOME } f
  * This module contains all board position mapping logic:
  * 1. toGlobalPosition - Maps player-relative positions to global board positions (for game logic)
  * 2. getGridCoord - Maps positions to UI grid coordinates (for rendering)
+ * 3. getCoordinates - Direct mapping of track index to coordinates
  */
 
 // ============================================================================
@@ -166,4 +167,16 @@ function getHomeStretchCoord(color: string, index: number): Coordinate {
             return { r: 14 - index, c: 8 };
         default: return { r: 8, c: 8 };
     }
+}
+
+/**
+ * Gets the grid coordinate for a given index on the main track.
+ * @param index - The global track index (0-51)
+ * @returns The grid coordinate {r, c}
+ */
+export function getCoordinates(index: number): Coordinate {
+    if (index < 0 || index >= GLOBAL_TRACK.length) {
+        return { r: 0, c: 0 }; // Fallback or throw error
+    }
+    return GLOBAL_TRACK[index];
 }

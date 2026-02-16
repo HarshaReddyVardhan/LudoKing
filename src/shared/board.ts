@@ -67,4 +67,4 @@ export function isSafeSquare(position: number): boolean {
 }
 
 // Re-export toGlobalPosition from the centralized boardMapping module
-export { toGlobalPosition } from './boardMapping';
+export { toGlobalPosition } from './boardMap';

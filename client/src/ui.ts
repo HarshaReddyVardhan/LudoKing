@@ -1,4 +1,4 @@
-import { getGridCoord } from '@shared/boardMapping';
+import { getGridCoord } from '@shared/boardMap';
 import type { GameState, Pawn } from '../../src/shared/types';
 import { sendMoveRequest } from './socket';
 
