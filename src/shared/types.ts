@@ -20,6 +20,7 @@ export interface Player {
     color: PlayerColor;
     isBot: boolean;
     isActive: boolean;
+    rank?: number; // 1 = 1st, 2 = 2nd, etc.
 }
 
 export interface MoveLog {

@@ -32,3 +32,34 @@ export function initializePawns(color: PlayerColor): Pawn[] {
         pawnIndex: index,
     }));
 }
+
+export function checkWinCondition(state: GameState): GameState {
+    // 1. Check for players who have finished
+    const finishedPlayers = state.players.filter(p => p.rank?.valueOf()).length;
+    let nextRank = finishedPlayers + 1;
+
+    for (const player of state.players) {
+        if (player.rank) continue; // Already ranked
+
+        // Check if all 4 pawns are at position 59 (Goal)
+        const playerPawns = state.pawns.filter(p => p.color === player.color);
+        const allFinished = playerPawns.length === 4 && playerPawns.every(p => p.position === 59);
+
+        if (allFinished) {
+            player.rank = nextRank;
+            nextRank++;
+        }
+    }
+
+    // 2. Check if game should end
+    const totalPlayers = state.players.length;
+    const playersRemaining = state.players.filter(p => !p.rank).length;
+
+    // Logic: If there's only 1 player left (and we started with > 1), game over.
+    // Or if started with 1 player and 0 remain.
+    if ((totalPlayers > 1 && playersRemaining <= 1) || (totalPlayers === 1 && playersRemaining === 0)) {
+        state.gamePhase = 'FINISHED';
+    }
+
+    return state;
+}
