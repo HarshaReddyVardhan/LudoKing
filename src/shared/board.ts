@@ -57,19 +57,13 @@ export function isSafeSquare(position: number): boolean {
     return BOARD.SAFE_SQUARES.includes(position);
 }
 
-/**
- * Converts a pawn's logical position to a global board position
- * considering the color's offset on the circular track.
- * 
- * This is used internally for collision detection between different colors.
- */
-export function toGlobalPosition(localPosition: number, color: PlayerColor): number {
-    if (localPosition === BOARD.HOME || localPosition >= BOARD.HOME_STRETCH_START) {
-        // Home, goal, or home stretch positions are not on the shared track
-        return -1;
-    }
+const GLOBAL_POS_MAP: Record<PlayerColor, readonly number[]> = {
+    RED: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -1, -1, -1, -1, -1, -1],
+    BLUE: [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, -1, -1, -1, -1, -1, -1],
+    GREEN: [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -1, -1, -1, -1, -1, -1],
+    YELLOW: [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, -1, -1, -1, -1, -1, -1],
+};
 
-    // For positions on the shared main track (1-52), the position value IS the global position.
-    // The previous implementation incorrectly added the start position offset again.
-    return localPosition;
+export function toGlobalPosition(localStep: number, color: PlayerColor): number {
+    return GLOBAL_POS_MAP[color][localStep] ?? -1;
 }
