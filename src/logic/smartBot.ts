@@ -5,6 +5,26 @@ import { rollDice } from './diceEngine';
 import { BOARD, toGlobalPosition, isSafeSquare } from '../shared/board';
 
 /**
+ * Calculates how far a position is from the player's start.
+ * Used to prioritize moving pawns closer to the goal.
+ */
+function getDistanceFromStart(pos: number, color: PlayerColor): number {
+    if (pos === BOARD.HOME) return 0;
+    if (pos === BOARD.GOAL) return BOARD.MAIN_TRACK_LENGTH + 6; // Goal is max distance
+
+    if (pos >= BOARD.HOME_STRETCH_START) {
+        // Distance on main track portion (52) + distance into home stretch
+        // Home stretch starts at 53.
+        return BOARD.MAIN_TRACK_LENGTH + (pos - BOARD.HOME_STRETCH_START);
+    }
+
+    const start = BOARD.START_POSITIONS[color];
+    // Main track distance: (pos - start + 52) % 52
+    // If pos == start, dist is 0.
+    return (pos - start + BOARD.MAIN_TRACK_LENGTH) % BOARD.MAIN_TRACK_LENGTH;
+}
+
+/**
  * Smart Bot Strategy Configuration
  */
 interface BotWeights {
@@ -61,13 +81,10 @@ function scoreMove(move: ValidMove, state: GameState, weights: BotWeights): numb
         score += weights.enterHomeStretch;
     }
 
-    // 6. Progress Bonus (Distance travelled)
-    // Roughly 1 pt per square.
-    // Note: 'to' and 'from' aren't linear global indices, so simple subtraction works only for same segment.
-    // But since we want "progress", we can just infer the move distance is mostly the dice value.
-    // However, moving into safety is better.
-    // Let's just use dice value as a tie-breaker.
-    // score += (state.currentDiceValue || 0) * weights.progressMultiplier;
+    // 6. Progress Value (Prefer moving pawns closer to goal)
+    // We prioritize advancing pawns that are closer to completion to finish the game.
+    const distanceFromStart = getDistanceFromStart(move.to, color);
+    score += distanceFromStart * weights.progressMultiplier;
 
     // 7. Risk Assessment (The "Smart" part)
     // Check if the destination puts us in range of an opponent.
@@ -89,9 +106,8 @@ function scoreMove(move: ValidMove, state: GameState, weights: BotWeights): numb
             // So if `myGlobal - oppGlobal` is 1..6, I am in danger.
 
             if (distance >= 1 && distance <= 6) {
-                // Higher penalty if they are closer or if 6 (likely roll? well 1/6 chance for any)
+                // Apply penalty for each opponent in range
                 score -= weights.riskPenalty;
-                // Accumulate risk? Or just once? Let's accumulate for multiple threats.
             }
         }
     }
