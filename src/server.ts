@@ -29,7 +29,11 @@ interface MoveRequest {
     pawnId: string;
 }
 
-type ClientMessage = RollRequest | JoinRequest | MoveRequest;
+interface StartGameRequest {
+    type: 'START_GAME';
+}
+
+type ClientMessage = RollRequest | JoinRequest | MoveRequest | StartGameRequest;
 
 export default class LudoServer implements Party.Server {
     gameState: GameState;
@@ -85,6 +89,29 @@ export default class LudoServer implements Party.Server {
                 break;
             case 'MOVE_REQUEST':
                 this.handleMove(sender, parsed.pawnId);
+                break;
+            case 'START_GAME':
+                if (this.gameState.players.length < 2) {
+                    sender.send(JSON.stringify({ type: 'ERROR', error: 'Need at least 2 players to start' }));
+                    return;
+                }
+
+                // Only host (first player) can start
+                const host = this.gameState.players[0];
+                if (!host || host.id !== sender.id) {
+                    sender.send(JSON.stringify({ type: 'ERROR', error: 'Only the host can start the game' }));
+                    return;
+                }
+
+                if (this.gameState.gamePhase !== 'WAITING') {
+                    return;
+                }
+
+                this.gameState.gamePhase = 'ROLLING';
+                this.gameState.currentTurn = 'RED'; // Always start with RED
+
+                this.startTurnTimer();
+                this.broadcastState();
                 break;
             default:
                 sender.send(JSON.stringify({ type: 'ERROR', error: 'Unknown message type' }));
@@ -189,12 +216,12 @@ export default class LudoServer implements Party.Server {
             }
         }
 
-        // Start game if 2+ players (Auto-start for now, can move to manual START button later)
-        if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
-            this.gameState.gamePhase = 'ROLLING';
-            this.gameState.currentTurn = this.gameState.players[0].color;
-            this.startTurnTimer();
-        }
+        // Start game logic moved to explicit START_GAME message
+        // if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
+        //     this.gameState.gamePhase = 'ROLLING';
+        //     this.gameState.currentTurn = this.gameState.players[0].color;
+        //     this.startTurnTimer();
+        // }
 
         this.broadcastState();
     }
@@ -248,11 +275,12 @@ export default class LudoServer implements Party.Server {
         this.broadcastState();
 
         // If this triggered start
-        if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
-            this.gameState.gamePhase = 'ROLLING';
-            this.gameState.currentTurn = this.gameState.players[0].color;
-            this.startTurnTimer();
-        }
+        // Start game logic moved to explicit START_GAME message
+        // if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
+        //     this.gameState.gamePhase = 'ROLLING';
+        //     this.gameState.currentTurn = this.gameState.players[0].color;
+        //     this.startTurnTimer();
+        // }
     }
 
     private handleRoll(conn: Party.Connection) {
