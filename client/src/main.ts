@@ -49,11 +49,17 @@ function handleMessage(data: ServerMessage) {
     case 'MOVE_EXECUTED':
       // Clear notification on move
       UI.clearNotifications();
+      // Reset validPawnIds as the turn/phase has changed
+      validPawnIds = [];
+      UI.renderState(gameState, myColor, validPawnIds);
       break;
 
     case 'TURN_SKIPPED':
       // Show notification briefly
       UI.showNotification("TURN SKIPPED", "No Moves");
+      // Reset validPawnIds
+      validPawnIds = [];
+      UI.renderState(gameState, myColor, validPawnIds);
       setTimeout(UI.clearNotifications, 2000);
       break;
 

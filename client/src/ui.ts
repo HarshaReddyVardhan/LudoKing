@@ -122,8 +122,11 @@ export function startTimer(durationMs: number) {
     }, 50);
 }
 
-export function renderState(gameState: GameState | null, myColor: string | null, validPawnIds: string[]) {
+export function renderState(gameState: GameState | null, myColor: string | null, validPawnIds: string[] = []) {
     if (!gameState) return;
+
+    // Ensure validPawnIds is always an array
+    const safeValidPawnIds = Array.isArray(validPawnIds) ? validPawnIds : [];
 
     // Clear existing pawns
     document.querySelectorAll('.pawn').forEach(el => el.remove());
@@ -179,7 +182,7 @@ export function renderState(gameState: GameState | null, myColor: string | null,
             // Check if movable
             if (gameState?.currentTurn === myColor &&
                 gameState.gamePhase === 'MOVING' &&
-                Array.isArray(validPawnIds) && validPawnIds.includes(pawn.id)) {
+                safeValidPawnIds.includes(pawn.id)) {
                 el.className += ' clickable';
                 el.dataset.pawnId = pawn.id;
             }
