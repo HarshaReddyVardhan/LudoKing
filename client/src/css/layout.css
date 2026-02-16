@@ -15,6 +15,13 @@
     min-width: 0;
 }
 
+.board-container {
+    display: grid;
+    width: 100vmin;
+    aspect-ratio: 1 / 1;
+    margin: auto;
+}
+
 .sidebar-panel {
     width: 300px;
     display: flex;
