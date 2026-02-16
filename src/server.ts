@@ -12,7 +12,8 @@ import {
     createStateSyncMessage,
     createPlayerJoinedMessage,
     createJoinSuccessMessage,
-    createJoinRejectedMessage
+    createJoinRejectedMessage,
+    deleteRoom
 } from "./room/roomUtils";
 import { simpleBotDecide } from "./logic/simpleBot";
 
@@ -43,6 +44,15 @@ export default class LudoServer implements Party.Server {
 
         // Send current state
         conn.send(JSON.stringify(createStateSyncMessage(this.gameState)));
+    }
+
+    async onClose(conn: Party.Connection) {
+        console.log(`Connection closed: ${conn.id} in room ${this.roomCode}`);
+
+        // If the room is empty, clean up
+        if (this.room.connections.size === 0) {
+            await deleteRoom(this.roomCode, this.room);
+        }
     }
 
     onMessage(message: string, sender: Party.Connection) {

@@ -316,3 +316,14 @@ export function createJoinRejectedMessage(error: string) {
         error
     };
 }
+
+/**
+ * Cleans up room resources when a room is empty.
+ * @param roomId The ID of the room to delete (for logging)
+ * @param room The PartyKit room instance (needed to clear storage)
+ */
+export async function deleteRoom(roomId: string, room: Party.Room) {
+    console.log(`[Room ${roomId}] Deleting room and clearing storage...`);
+    // Clear all storage (alarms, persisted state) to prevent leaks
+    await room.storage.deleteAll();
+}
