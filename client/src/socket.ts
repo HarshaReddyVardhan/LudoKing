@@ -1,5 +1,6 @@
-import { PARTYKIT_HOST } from './types';
 import type { ServerMessage } from '../../src/shared/types';
+
+const PARTYKIT_HOST = 'localhost:1999';
 
 let socket: WebSocket | null = null;
 

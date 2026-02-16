@@ -1,5 +1,5 @@
 import { getGridCoord } from '@shared/boardMapping';
-import { GameState, Pawn } from './types';
+import type { GameState, Pawn } from '../../src/shared/types';
 import { sendMoveRequest } from './socket';
 
 // DOM Elements

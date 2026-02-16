@@ -1,6 +1,6 @@
 import './style.css';
-import { GameState } from './types';
-import type { ServerMessage } from '../../src/shared/types';
+import './style.css';
+import type { GameState, ServerMessage } from '../../src/shared/types';
 import * as Socket from './socket';
 import * as UI from './ui';
 
