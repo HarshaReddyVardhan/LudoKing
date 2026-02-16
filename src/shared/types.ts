@@ -166,9 +166,10 @@ export interface BotTakeoverMsg {
     color: PlayerColor;
 }
 
-export interface ErrorMsg {
+export interface ErrorPayload {
     type: 'ERROR';
-    error: string;
+    code: string;
+    message: string;
 }
 
 export type ServerMessage =
@@ -185,7 +186,7 @@ export type ServerMessage =
     | PlayerKickedMsg
     | TurnTimerStartMsg
     | BotTakeoverMsg
-    | ErrorMsg;
+    | ErrorPayload;
 
 // Client -> Server Messages
 export const ClientMessageSchema = z.discriminatedUnion('type', [

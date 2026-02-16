@@ -60,14 +60,14 @@ export default class LudoServer implements Party.Server {
         try {
             json = JSON.parse(message);
         } catch {
-            sender.send(JSON.stringify({ type: 'ERROR', error: 'Invalid JSON' }));
+            sender.send(JSON.stringify({ type: 'ERROR', code: 'INVALID_JSON', message: 'Invalid JSON' }));
             return;
         }
 
         const result = ClientMessageSchema.safeParse(json);
         if (!result.success) {
             console.error("Validation error:", result.error);
-            sender.send(JSON.stringify({ type: 'ERROR', error: 'Invalid message format' }));
+            sender.send(JSON.stringify({ type: 'ERROR', code: 'INVALID_FORMAT', message: 'Invalid message format' }));
             return;
         }
 
@@ -79,41 +79,53 @@ export default class LudoServer implements Party.Server {
         // But let's leave this generic cancel for now, and handle specific resets in methods.
         // this.cancelTurnTimer(); // MOVED to inside handlers to be safer/more specific
 
-        switch (parsed.type) {
-            case 'JOIN_REQUEST':
-                this.handleJoin(sender, parsed.name, parsed.create, parsed.playerId, parsed.totalPlayers, parsed.botCount);
-                break;
-            case 'ROLL_REQUEST':
-                this.handleRoll(sender);
-                break;
-            case 'MOVE_REQUEST':
-                this.handleMove(sender, parsed.pawnId);
-                break;
-            case 'START_GAME':
-                if (this.gameState.players.length < 2) {
-                    sender.send(JSON.stringify({ type: 'ERROR', error: 'Need at least 2 players to start' }));
-                    return;
-                }
+        try {
+            switch (parsed.type) {
+                case 'JOIN_REQUEST':
+                    this.handleJoin(sender, parsed.name, parsed.create, parsed.playerId, parsed.totalPlayers, parsed.botCount);
+                    break;
+                case 'ROLL_REQUEST':
+                    this.handleRoll(sender);
+                    break;
+                case 'MOVE_REQUEST':
+                    this.handleMove(sender, parsed.pawnId);
+                    break;
+                case 'START_GAME':
+                    if (this.gameState.players.length < 2) {
+                        sender.send(JSON.stringify({ type: 'ERROR', code: 'NOT_ENOUGH_PLAYERS', message: 'Need at least 2 players to start' }));
+                        return;
+                    }
 
-                // Only host (first player) can start
-                const host = this.gameState.players[0];
-                if (!host || host.id !== sender.id) {
-                    sender.send(JSON.stringify({ type: 'ERROR', error: 'Only the host can start the game' }));
-                    return;
-                }
+                    // Only host (first player) can start
+                    const host = this.gameState.players[0];
+                    if (!host || host.id !== sender.id) {
+                        sender.send(JSON.stringify({ type: 'ERROR', code: 'NOT_HOST', message: 'Only the host can start the game' }));
+                        return;
+                    }
 
-                if (this.gameState.gamePhase !== 'WAITING') {
-                    return;
-                }
+                    if (this.gameState.gamePhase !== 'WAITING') {
+                        return;
+                    }
 
-                this.gameState.gamePhase = 'ROLLING';
-                this.gameState.currentTurn = 'RED'; // Always start with RED
+                    this.gameState.gamePhase = 'ROLLING';
+                    this.gameState.currentTurn = 'RED'; // Always start with RED
 
-                this.startTurnTimer();
-                this.broadcastState();
-                break;
-            default:
-                sender.send(JSON.stringify({ type: 'ERROR', error: 'Unknown message type' }));
+                    this.startTurnTimer();
+                    this.broadcastState();
+                    break;
+                case 'ADD_BOT':
+                    this.handleAddBot(sender);
+                    break;
+                default:
+                    sender.send(JSON.stringify({ type: 'ERROR', code: 'UNKNOWN_TYPE', message: 'Unknown message type' }));
+            }
+        } catch (err) {
+            console.error("Game Logic Processing Error:", err);
+            sender.send(JSON.stringify({
+                type: 'ERROR',
+                code: 'INTERNAL_ERROR',
+                message: err instanceof Error ? err.message : 'Unknown server error'
+            }));
         }
     }
 
@@ -171,7 +183,7 @@ export default class LudoServer implements Party.Server {
         const result = handleRollRequest(this.gameState, conn.id);
 
         if (!result.success) {
-            conn.send(JSON.stringify({ type: 'ROLL_REJECTED', error: result.error }));
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'ROLL_FAILED', message: result.error }));
             return;
         }
 
@@ -210,12 +222,12 @@ export default class LudoServer implements Party.Server {
     private handleMove(conn: Party.Connection, pawnId: string) {
         const player = this.gameState.players.find(p => p.id === conn.id);
         if (!player) {
-            conn.send(JSON.stringify({ type: 'MOVE_REJECTED', error: 'Player not found' }));
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: 'Player not found' }));
             return;
         }
 
         if (player.color !== this.gameState.currentTurn) {
-            conn.send(JSON.stringify({ type: 'MOVE_REJECTED', error: 'Not your turn' }));
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: 'Not your turn' }));
             return;
         }
 
@@ -223,7 +235,7 @@ export default class LudoServer implements Party.Server {
         this.cancelTurnTimer(); // Cancel timer
 
         if (this.gameState.gamePhase !== 'MOVING') {
-            conn.send(JSON.stringify({ type: 'MOVE_REJECTED', error: 'Must roll first' }));
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: 'Must roll first' }));
             return;
         }
 
@@ -231,7 +243,7 @@ export default class LudoServer implements Party.Server {
         const result = executeMove(this.gameState, pawnId, validMoves);
 
         if (!result.success) {
-            conn.send(JSON.stringify({ type: 'MOVE_REJECTED', error: result.error }));
+            conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: result.error }));
             return;
         }
 

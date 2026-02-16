@@ -181,7 +181,7 @@ export function renderState(gameState: GameState | null, myColor: string | null,
                 gameState.gamePhase === 'MOVING' &&
                 validPawnIds.includes(pawn.id)) {
                 el.className += ' clickable';
-                el.onclick = () => sendMoveRequest(pawn.id);
+                el.dataset.pawnId = pawn.id;
             }
 
             wrapper.appendChild(el);
@@ -290,3 +290,26 @@ export function setBotCount(val: number) {
 export function showError(el: HTMLElement, show: boolean) {
     el.style.display = show ? 'block' : 'none';
 }
+
+// Event Delegation for Board Interactions
+board.addEventListener('click', (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+
+    // Use closest('.cell') as requested to determine the context
+    const cell = target.closest('.cell');
+    if (cell) {
+        // If specific pawn was clicked, prioritize it
+        const pawnEl = target.closest('.pawn') as HTMLElement;
+        if (pawnEl && pawnEl.dataset.pawnId && pawnEl.classList.contains('clickable')) {
+            sendMoveRequest(pawnEl.dataset.pawnId);
+            return;
+        }
+
+        // Otherwise, if cell has a SINGLE clickable pawn (or just pick one), move it.
+        // This improves UX by making the whole cell a hit target.
+        const clickablePawn = cell.querySelector('.pawn.clickable') as HTMLElement;
+        if (clickablePawn && clickablePawn.dataset.pawnId) {
+            sendMoveRequest(clickablePawn.dataset.pawnId);
+        }
+    }
+});

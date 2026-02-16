@@ -65,9 +65,12 @@ function handleMessage(data: ServerMessage) {
       UI.statusEl.textContent = "Bot taking over...";
       break;
 
-    case 'ERROR':
     case 'JOIN_REJECTED':
       alert(data.error);
+      break;
+
+    case 'ERROR':
+      alert(data.message);
       break;
   }
 }
