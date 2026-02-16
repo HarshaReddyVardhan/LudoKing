@@ -54,3 +54,39 @@
         padding: 15px;
     }
 }
+
+/* Portrait mode (phones) */
+@media (max-width: 768px) {
+    #game-ui.layout-sidebar {
+        flex-direction: column;
+    }
+
+    .board-panel {
+        order: 1;
+    }
+
+    .sidebar-panel {
+        order: 2;
+        width: 100%;
+    }
+}
+
+/* Landscape mode (phones rotated) */
+@media (max-height: 500px) {
+    #game-ui.layout-sidebar {
+        flex-direction: row;
+    }
+
+    .board-panel {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .sidebar-panel {
+        width: 250px;
+        max-height: 100%;
+        overflow-y: auto;
+    }
+}

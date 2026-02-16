@@ -32,6 +32,19 @@
     align-items: center;
 }
 
+/* Handle multiple pawns on one cell */
+.cell-multiple {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    padding: 2px;
+}
+
+.cell-multiple .pawn {
+    transform: scale(0.7);
+    transform-origin: center;
+}
+
 /* Special Zones */
 .base-area {
     border: 2px solid #000;
