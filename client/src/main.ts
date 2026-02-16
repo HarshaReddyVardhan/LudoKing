@@ -1,5 +1,6 @@
 import './style.css';
 import { GameState } from './types';
+import type { ServerMessage } from '../../src/shared/types';
 import * as Socket from './socket';
 import * as UI from './ui';
 
@@ -11,7 +12,7 @@ let roomCode: string = '';
 let playerId = localStorage.getItem('ludo_player_id');
 
 // Socket Message Handler
-function handleMessage(data: any) {
+function handleMessage(data: ServerMessage) {
   switch (data.type) {
     case 'ROOM_INFO':
       roomCode = data.roomCode;
@@ -34,7 +35,7 @@ function handleMessage(data: any) {
       break;
 
     case 'DICE_RESULT':
-      UI.diceDisplay.textContent = data.diceValue;
+      UI.diceDisplay.textContent = data.diceValue.toString();
       validPawnIds = data.validPawnIds || [];
       UI.renderState(gameState, myColor, validPawnIds); // Update highlights
 
@@ -76,7 +77,7 @@ let playerName = "";
 
 // On load, check if we have a name/id?
 if (playerId) {
-  console.log("Found existing session:", playerId);
+  // Session restored from localStorage
 }
 
 function handleNameStep() {
@@ -249,7 +250,7 @@ UI.roomCodeEl.onclick = async () => {
       UI.copyNotification.classList.remove('show');
     }, 2000);
   } catch (err) {
-    console.error('Failed to copy:', err);
+    // Failed to copy to clipboard
     alert('Failed to copy room code. Please copy manually: ' + roomCode);
   }
 };

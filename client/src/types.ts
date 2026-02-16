@@ -1,3 +1,5 @@
+import type { MoveLog } from '../../src/shared/types';
+
 export interface Pawn {
     id: string;
     color: string;
@@ -21,7 +23,7 @@ export interface GameState {
     gamePhase: string;
     roomCode: string;
     lastUpdate: number;
-    lastMove: any;
+    lastMove: MoveLog | null;
     winner?: string;
 }
 

@@ -146,6 +146,17 @@ export interface TurnTimerStartMsg {
     startTime: number;
 }
 
+export interface BotTakeoverMsg {
+    type: 'BOT_TAKEOVER';
+    playerId: string;
+    color: PlayerColor;
+}
+
+export interface ErrorMsg {
+    type: 'ERROR';
+    error: string;
+}
+
 export type ServerMessage =
     | RoomInfoMsg
     | JoinSuccessMsg
@@ -158,4 +169,6 @@ export type ServerMessage =
     | PawnKilledMsg
     | HomeRunMsg
     | PlayerKickedMsg
-    | TurnTimerStartMsg;
+    | TurnTimerStartMsg
+    | BotTakeoverMsg
+    | ErrorMsg;
