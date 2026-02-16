@@ -1,8 +1,9 @@
 import { PARTYKIT_HOST } from './types';
+import type { ServerMessage } from '../../src/shared/types';
 
 let socket: WebSocket | null = null;
 
-type MessageHandler = (data: any) => void;
+type MessageHandler = (data: ServerMessage) => void;
 
 export function connect(joinedRoom: string, onMessage: MessageHandler) {
     const url = `ws://${PARTYKIT_HOST}/parties/main/${joinedRoom}`;
@@ -21,7 +22,11 @@ export function connect(joinedRoom: string, onMessage: MessageHandler) {
 }
 
 export function sendJoinRequest(name: string, create: boolean, playerId?: string | null, totalPlayers?: number, botCount?: number) {
-    const payload: any = { type: 'JOIN_REQUEST', name, create };
+    const payload: { type: 'JOIN_REQUEST'; name: string; create: boolean; playerId?: string; totalPlayers?: number; botCount?: number } = {
+        type: 'JOIN_REQUEST',
+        name,
+        create
+    };
     if (playerId) payload.playerId = playerId;
     if (create && totalPlayers !== undefined) {
         payload.totalPlayers = totalPlayers;

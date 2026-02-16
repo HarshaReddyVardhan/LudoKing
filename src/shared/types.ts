@@ -172,3 +172,10 @@ export type ServerMessage =
     | TurnTimerStartMsg
     | BotTakeoverMsg
     | ErrorMsg;
+
+// Client -> Server Messages
+export type ClientMessage =
+    | JoinRequest
+    | RollRequest
+    | MoveRequest
+    | AddBotRequest;
