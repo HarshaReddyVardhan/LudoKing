@@ -6,6 +6,7 @@ export const DICE_MAX_VALUE = 6;
 export const ENTER_BOARD_DICE_ROLL = 6;
 export const MAX_CONSECUTIVE_SIXES = 3;
 export const ROLL_DEBOUNCE_MS = 300;
+export const WEIGHTED_SIX_PROBABILITY = 0.4;
 
 // Special Board Positions
 export const POSITION_HOME = 0;

@@ -1,9 +1,10 @@
 import { GameState, PlayerColor, COLORS } from '../shared/types';
-import { MAX_CONSECUTIVE_SIXES, ROLL_DEBOUNCE_MS, POSITION_HOME, DICE_MAX_VALUE } from '../shared/constants';
+import { MAX_CONSECUTIVE_SIXES, ROLL_DEBOUNCE_MS, POSITION_HOME, DICE_MAX_VALUE, WEIGHTED_SIX_PROBABILITY } from '../shared/constants';
 
 /**
  * Interface for providing random numbers.
  * Allows injecting deterministic behavior for testing.
+ * Must return a number in the range [0, 1).
  */
 export interface IDiceProvider {
     roll(): number;
@@ -24,13 +25,19 @@ export class RandomDiceProvider implements IDiceProvider {
  * (Standard: ~16%, Weighted: ~40%)
  */
 export function rollDice(weightSix: boolean = false, provider: IDiceProvider = new RandomDiceProvider()): number {
+    const r = provider.roll();
+
     if (weightSix) {
-        // 40% chance of rolling a 6
-        if (provider.roll() < 0.4) return DICE_MAX_VALUE;
-        // Remaining 60% split among 1-5
-        return Math.floor(provider.roll() * (DICE_MAX_VALUE - 1)) + 1;
+        // Weighted chance of rolling a 6
+        if (r < WEIGHTED_SIX_PROBABILITY) return DICE_MAX_VALUE;
+
+        // Remaining probability split among 1-5
+        // Normalize r from [WEIGHTED_SIX_PROBABILITY, 1.0) to [0, 1.0)
+        const probabilityRem = 1.0 - WEIGHTED_SIX_PROBABILITY;
+        const normalized = (r - WEIGHTED_SIX_PROBABILITY) / probabilityRem;
+        return Math.floor(normalized * (DICE_MAX_VALUE - 1)) + 1;
     }
-    return Math.floor(provider.roll() * DICE_MAX_VALUE) + 1;
+    return Math.floor(r * DICE_MAX_VALUE) + 1;
 }
 
 /**

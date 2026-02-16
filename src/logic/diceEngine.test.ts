@@ -30,15 +30,15 @@ describe('Dice Engine', () => {
         it('should handle weighted rolls', () => {
             // Weighted logic:
             // if roll() < 0.4 -> return 6
-            // else return 1-5 based on another roll()
+            // else return 1-5 based on the same roll normalized
 
-            // Case 1: First roll < 0.4 -> should be 6
+            // Case 1: Roll < 0.4 -> 6
             const mockSix = new MockDiceProvider([0.3]);
             expect(rollDice(true, mockSix)).toBe(6);
 
-            // Case 2: First roll >= 0.4 -> uses second roll
-            // 0.5 (fail weight check) -> then 0.0 -> 1
-            const mockOther = new MockDiceProvider([0.5, 0.0]);
+            // Case 2: Roll >= 0.4 -> 1-5
+            // 0.5 -> (0.5-0.4)/0.6 = 0.166... -> *5 = 0.833... -> 0 -> +1 = 1
+            const mockOther = new MockDiceProvider([0.5]);
             expect(rollDice(true, mockOther)).toBe(1);
         });
     });
