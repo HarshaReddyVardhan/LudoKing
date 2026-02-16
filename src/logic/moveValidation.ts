@@ -14,60 +14,125 @@ export interface ValidMove {
  * Calculates valid moves for the current player based on dice roll.
  * Returns list of pawns that can legally move.
  */
+
 export function getValidMoves(state: GameState): ValidMove[] {
     const { currentDiceValue: dice, currentTurn: turn, pawns } = state;
     if (!dice) return [];
 
-    // Safe Squares: Stars at 1, 9, 14 etc
-    const isSafe = (i: number) => SAFE_ZONES.includes(i);
     const moves: ValidMove[] = [];
 
     pawns.filter(p => p.color === turn).forEach(p => {
-        const { id, position: pos, color } = p;
-        let to = -1, capture = false, goal = false;
+        const to = calculateTargetPosition(p, dice);
 
-        // Path Logic
-        if (pos === BOARD.HOME) {
-            if (dice === ENTER_BOARD_DICE_ROLL) to = BOARD.START_POSITIONS[color];
-            else return;
-        } else if (pos === BOARD.GOAL) {
-            return;
-        } else if (pos >= BOARD.HOME_STRETCH_START) {
-            if (pos + dice <= BOARD.GOAL) to = pos + dice;
-            else return;
-        } else {
-            const entry = BOARD.HOME_ENTRY_POSITIONS[color];
-            const dist = (pos <= entry) ? entry - pos : (BOARD.MAIN_TRACK_LENGTH - pos) + entry;
+        if (to === null) return;
+        if (isPathBlocked(to, pawns, p.color)) return;
 
-            if (dice > dist) {
-                to = BOARD.HOME_STRETCH_START - 1 + (dice - dist);
-                if (to > BOARD.GOAL) return;
-            } else {
-                to = pos + dice;
-                if (to > BOARD.MAIN_TRACK_LENGTH) to -= BOARD.MAIN_TRACK_LENGTH;
-            }
-        }
+        const willCapture = shouldCapture(to, pawns, p.color);
+        const willReachGoal = to === BOARD.GOAL;
 
-        goal = to === BOARD.GOAL;
-        const safeSq = isSafe(to) || to === BOARD.GOAL;
-        const busy = pawns.filter(op => op.position === to && to !== BOARD.GOAL && to !== BOARD.HOME);
-
-        // Blocked by Own (Stack 'em if safe, else block)
-        if (!safeSq && busy.some(op => op.color === turn)) return;
-
-        // Capture Logic
-        if (to <= BOARD.MAIN_TRACK_LENGTH) {
-            const opp = busy.some(op => op.color !== turn);
-            if (opp) {
-                if (safeSq) capture = false; // Safe Square: No kill. Stack 'em.
-                else capture = true; // Unsafe: Send opp to base
-            }
-        }
-
-        moves.push({ pawnId: id, from: pos, to, willCapture: capture, willReachGoal: goal });
+        moves.push({
+            pawnId: p.id,
+            from: p.position,
+            to,
+            willCapture,
+            willReachGoal
+        });
     });
 
     return moves;
+}
+
+/**
+ * Calculates the target position for a pawn given a dice roll.
+ * Returns null if the move is invalid (e.g. wrong dice for start, overshooting goal).
+ */
+function calculateTargetPosition(pawn: Pawn, dice: number): number | null {
+    const { position: pos, color } = pawn;
+
+    // 1. Enter Board Logic
+    if (pos === BOARD.HOME) {
+        return dice === ENTER_BOARD_DICE_ROLL ? BOARD.START_POSITIONS[color] : null;
+    }
+
+    // 2. Already at Goal
+    if (pos === BOARD.GOAL) {
+        return null;
+    }
+
+    // 3. Home Stretch Logic
+    if (pos >= BOARD.HOME_STRETCH_START) {
+        return isValidHomeStretchMove(pos, dice) ? pos + dice : null;
+    }
+
+    // 4. Main Track Logic
+    return calculateMainTrackMove(pos, dice, color);
+}
+
+/**
+ * Checks if a move within the home stretch doesn't overshoot the goal.
+ */
+function isValidHomeStretchMove(currentPos: number, dice: number): boolean {
+    return currentPos + dice <= BOARD.GOAL;
+}
+
+/**
+ * Calculates the target position from the main track.
+ * Handles wrapping around the board and entering the home stretch.
+ */
+function calculateMainTrackMove(pos: number, dice: number, color: PlayerColor): number | null {
+    const entry = BOARD.HOME_ENTRY_POSITIONS[color];
+
+    // Calculate distance to the home stretch entry point
+    const distToEntry = (pos <= entry)
+        ? entry - pos
+        : (BOARD.MAIN_TRACK_LENGTH - pos) + entry;
+
+    if (dice > distToEntry) {
+        // Enter home stretch
+        const target = BOARD.HOME_STRETCH_START - 1 + (dice - distToEntry);
+        return target <= BOARD.GOAL ? target : null;
+    } else {
+        // Move along main track
+        let target = pos + dice;
+        if (target > BOARD.MAIN_TRACK_LENGTH) target -= BOARD.MAIN_TRACK_LENGTH;
+        return target;
+    }
+}
+
+/**
+ * Checks if the target position is blocked by a pawn of the same color.
+ * Self-stacking is allowed only on safe squares.
+ */
+function isPathBlocked(targetPos: number, allPawns: Pawn[], color: PlayerColor): boolean {
+    if (targetPos === BOARD.GOAL || targetPos === BOARD.HOME) return false;
+
+    const isSafe = isSafeSquare(targetPos);
+    const pawnsAtTarget = allPawns.filter(p => p.position === targetPos);
+
+    // If unsafe square, cannot land on own pawn
+    if (!isSafe && pawnsAtTarget.some(p => p.color === color)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Determines if moving to the target position will result in a capture.
+ */
+function shouldCapture(targetPos: number, allPawns: Pawn[], color: PlayerColor): boolean {
+    // Cannot capture in home stretch, home, or goal (logic implicit as opponents can't be there usually, but safe to check)
+    if (targetPos > BOARD.MAIN_TRACK_LENGTH) return false;
+
+    const isSafe = isSafeSquare(targetPos);
+    const pawnsAtTarget = allPawns.filter(p => p.position === targetPos);
+
+    // Capture if opponent is there and it's not a safe square
+    if (!isSafe && pawnsAtTarget.some(p => p.color !== color)) {
+        return true;
+    }
+
+    return false;
 }
 
 /**
