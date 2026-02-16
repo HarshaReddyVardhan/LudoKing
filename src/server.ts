@@ -1,9 +1,19 @@
 import type * as Party from "partykit/server";
 import { GameState } from "./shared/types";
-import { createInitialState, createPlayer, initializePawns } from "./logic/gameState";
+import { createInitialState } from "./logic/gameState";
 import { handleRollRequest } from "./logic/diceEngine";
 import { getValidMoves, getValidPawnIds, executeMove } from "./logic/moveValidation";
-import { MAX_PLAYERS_PER_ROOM } from "./room/roomUtils";
+import {
+    MAX_PLAYERS_PER_ROOM,
+    handlePlayerJoin,
+    addBotToGame,
+    addMultipleBots,
+    createRoomInfoMessage,
+    createStateSyncMessage,
+    createPlayerJoinedMessage,
+    createJoinSuccessMessage,
+    createJoinRejectedMessage
+} from "./room/roomUtils";
 import { simpleBotDecide } from "./logic/simpleBot";
 
 // Turn timeout in milliseconds (30 seconds)
@@ -49,20 +59,11 @@ export default class LudoServer implements Party.Server {
     onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
         console.log(`Connection established: ${conn.id} in room ${this.roomCode}`);
 
-        const currentPlayerCount = this.gameState.players.length;
+        // Send room info
+        conn.send(JSON.stringify(createRoomInfoMessage(this.roomCode, this.gameState)));
 
-        conn.send(JSON.stringify({
-            type: "ROOM_INFO",
-            roomCode: this.roomCode,
-            playerCount: currentPlayerCount,
-            maxPlayers: MAX_PLAYERS_PER_ROOM,
-            isFull: currentPlayerCount >= MAX_PLAYERS_PER_ROOM,
-        }));
-
-        conn.send(JSON.stringify({
-            type: "SYNC_STATE",
-            state: this.gameState
-        }));
+        // Send current state
+        conn.send(JSON.stringify(createStateSyncMessage(this.gameState)));
     }
 
     onMessage(message: string, sender: Party.Connection) {
@@ -119,168 +120,53 @@ export default class LudoServer implements Party.Server {
     }
 
     private handleJoin(conn: Party.Connection, name: string, create: boolean = false, playerId?: string, totalPlayers?: number, botCount?: number) {
-        const playerCount = this.gameState.players.length;
+        // Delegate to room utils for join logic
+        const result = handlePlayerJoin(
+            this.gameState,
+            conn.id,
+            name,
+            create,
+            playerId
+        );
 
-        // 1. RECONNECTION LOGIC
-        if (playerId) {
-            const existingPlayer = this.gameState.players.find(p => p.id === playerId);
-            if (existingPlayer) {
-                // Determine if we need to update the socket definition?
-                // PartyKit keeps connection, check if we need to swap IDs?
-                // Actually, we usually want to re-bind the *player* to this new *connection ID* if checking online status,
-                // BUT here we store player ID as the connection ID originally. 
-                // Let's UPDATE the player's ID to the new connection ID to keep it simple for communication,
-                // OR we keep a mapping.
-
-                // For simplicity in this architecture where p.id IS conn.id:
-                // We update the player ID to the NEW conn.id
-                console.log(`Reconnecting player ${existingPlayer.name} (${existingPlayer.id} -> ${conn.id})`);
-
-                // Update IDs in state
-                existingPlayer.id = conn.id;
-                // We also need to update this name if changed? No, keep original name for consistency or update?
-                // Let's keep original name to avoid identity spoofing confusion.
-
-                conn.send(JSON.stringify({
-                    type: 'JOIN_SUCCESS',
-                    player: existingPlayer,
-                    roomCode: this.roomCode,
-                    reconnected: true
-                }));
-
-                this.broadcastState();
-                return;
-            }
-        }
-
-        // 2. CREATE VS JOIN VALIDATION
-        if (playerCount === 0 && !create) {
-            console.log(`Rejecting join to empty room ${this.roomCode} without create flag`);
-            conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'Room does not exist' }));
+        if (!result.success) {
+            conn.send(JSON.stringify(createJoinRejectedMessage(result.error || 'Join failed')));
             return;
         }
 
-        // 3. FULL ROOM CHECK
-        if (playerCount >= MAX_PLAYERS_PER_ROOM) {
-            conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'Room is full (max 4 players)' }));
-            return;
+        // Update game state if modified
+        if (result.updatedState) {
+            this.gameState = result.updatedState;
         }
 
-        // 4. CHECK FOR DUPLICATES (by Connection ID)
-        const alreadyJoined = this.gameState.players.find(p => p.id === conn.id);
-        if (alreadyJoined) {
-            // Treat as success/ack
-            conn.send(JSON.stringify({
-                type: 'JOIN_SUCCESS',
-                player: alreadyJoined,
-                roomCode: this.roomCode,
-            }));
-            return;
+        // Send success message to the joining player
+        conn.send(JSON.stringify(
+            createJoinSuccessMessage(result.player!, this.roomCode, result.reconnected)
+        ));
+
+        // Broadcast player joined event if not a reconnection
+        if (!result.reconnected) {
+            this.room.broadcast(JSON.stringify(
+                createPlayerJoinedMessage(result.player!, this.gameState.players.length)
+            ));
         }
 
-        // 5. ASSIGN COLOR
-        const colors = ['RED', 'BLUE', 'GREEN', 'YELLOW'] as const;
-        const takenColors = this.gameState.players.map(p => p.color);
-        const availableColor = colors.find(c => !takenColors.includes(c));
-
-        if (!availableColor) {
-            conn.send(JSON.stringify({ type: 'JOIN_REJECTED', error: 'No colors available' }));
-            return;
-        }
-
-        // 6. CREATE PLAYER
-        const player = createPlayer(conn.id, name, availableColor);
-        const pawns = initializePawns(availableColor);
-
-        this.gameState.players.push(player);
-        this.gameState.pawns.push(...pawns);
-        this.gameState.lastUpdate = Date.now();
-
-        conn.send(JSON.stringify({
-            type: 'JOIN_SUCCESS',
-            player,
-            roomCode: this.roomCode,
-        }));
-
-        this.room.broadcast(JSON.stringify({
-            type: 'PLAYER_JOINED',
-            player,
-            playerCount: this.gameState.players.length,
-        }));
-
-        // 7. CREATE BOTS if this is room creation
+        // Add bots if this is room creation
         if (create && botCount && botCount > 0) {
             console.log(`Creating ${botCount} bots for room ${this.roomCode}`);
-            for (let i = 0; i < botCount; i++) {
-                this.addBot();
-            }
+            this.gameState = addMultipleBots(this.gameState, botCount);
         }
 
-        // Start game logic moved to explicit START_GAME message
-        // if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
-        //     this.gameState.gamePhase = 'ROLLING';
-        //     this.gameState.currentTurn = this.gameState.players[0].color;
-        //     this.startTurnTimer();
-        // }
-
         this.broadcastState();
-    }
-
-    private addBot() {
-        if (this.gameState.players.length >= MAX_PLAYERS_PER_ROOM) return;
-
-        const colors = ['RED', 'BLUE', 'GREEN', 'YELLOW'] as const;
-        const takenColors = this.gameState.players.map(p => p.color);
-        const availableColor = colors.find(c => !takenColors.includes(c));
-
-        if (!availableColor) return;
-
-        const botId = `bot-${Date.now()}-${Math.random()}`;
-        const botName = `Bot ${availableColor}`;
-
-        const player = createPlayer(botId, botName, availableColor);
-        player.isBot = true;
-
-        const pawns = initializePawns(availableColor);
-
-        this.gameState.players.push(player);
-        this.gameState.pawns.push(...pawns);
-
-        console.log(`Added bot: ${botName} (${botId})`);
     }
 
     private handleAddBot(conn: Party.Connection) {
-        if (this.gameState.players.length >= MAX_PLAYERS_PER_ROOM) return;
+        const result = addBotToGame(this.gameState);
 
-        // Only allow if game waiting? Or allow dynamic? Let's say Waiting for now.
-        // Or if in game, add to next empty slot?
-
-        const colors = ['RED', 'BLUE', 'GREEN', 'YELLOW'] as const;
-        const takenColors = this.gameState.players.map(p => p.color);
-        const availableColor = colors.find(c => !takenColors.includes(c));
-
-        if (!availableColor) return;
-
-        const botId = `bot-${Date.now()}`;
-        const botName = `Bot ${availableColor}`;
-
-        const player = createPlayer(botId, botName, availableColor);
-        player.isBot = true;
-
-        const pawns = initializePawns(availableColor);
-
-        this.gameState.players.push(player);
-        this.gameState.pawns.push(...pawns);
-
-        this.broadcastState();
-
-        // If this triggered start
-        // Start game logic moved to explicit START_GAME message
-        // if (this.gameState.players.length >= 2 && this.gameState.gamePhase === 'WAITING') {
-        //     this.gameState.gamePhase = 'ROLLING';
-        //     this.gameState.currentTurn = this.gameState.players[0].color;
-        //     this.startTurnTimer();
-        // }
+        if (result.success && result.updatedState) {
+            this.gameState = result.updatedState;
+            this.broadcastState();
+        }
     }
 
     private handleRoll(conn: Party.Connection) {
