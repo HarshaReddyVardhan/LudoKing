@@ -1,10 +1,36 @@
 :root {
+    /* Colors */
     --red: #b91c1c;
     --blue: #1e3a8a;
     --green: #14532d;
     --yellow: #a16207;
+
     --board-bg: #fff;
+    --board-border: #333;
+    --cell-border: #ccc;
     --safe-star: #e2e8f0;
+
     --bg-dark: #1a1a2e;
+    --bg-card: rgba(255, 255, 255, 0.05);
+    --bg-hover: rgba(255, 255, 255, 0.1);
+
     --text-light: #eee;
+    --text-secondary: #ccc;
+    --text-muted: #aaa;
+    --text-hint: #888;
+    --text-disabled: #666;
+    --text-dark: #333;
+
+    /* Dimensions */
+    --border-radius-lg: 12px;
+    --border-radius-md: 8px;
+
+    --pawn-base-width: 30px;
+    --pawn-height: 40px;
+    --pawn-half-width: 15px;
+
+    /* Components */
+    --input-bg: #0f3460;
+    --btn-red: #e94560;
+    --btn-secondary: #16213e;
 }

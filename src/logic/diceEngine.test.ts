@@ -1,16 +1,45 @@
 import { describe, it, expect } from 'vitest';
-import { rollDice, handleRollRequest, resetToRollingPhase } from './diceEngine';
+import { rollDice, handleRollRequest, resetToRollingPhase, IDiceProvider } from './diceEngine';
 import { createInitialState, createPlayer } from './gameState';
 import { GameState } from '../shared/types';
 
+class MockDiceProvider implements IDiceProvider {
+    private sequence: number[];
+    private index: number = 0;
+
+    constructor(sequence: number[]) {
+        this.sequence = sequence;
+    }
+
+    roll(): number {
+        const value = this.sequence[this.index];
+        this.index = (this.index + 1) % this.sequence.length;
+        return value;
+    }
+}
+
 describe('Dice Engine', () => {
     describe('rollDice', () => {
-        it('should return a value between 1 and 6', () => {
-            for (let i = 0; i < 100; i++) {
-                const result = rollDice();
-                expect(result).toBeGreaterThanOrEqual(1);
-                expect(result).toBeLessThanOrEqual(6);
-            }
+        it('should return deterministic values with mock provider', () => {
+            // 0.0 -> 1, 0.99 -> 6
+            const mock = new MockDiceProvider([0.0, 0.99]);
+            expect(rollDice(false, mock)).toBe(1);
+            expect(rollDice(false, mock)).toBe(6);
+        });
+
+        it('should handle weighted rolls', () => {
+            // Weighted logic:
+            // if roll() < 0.4 -> return 6
+            // else return 1-5 based on another roll()
+
+            // Case 1: First roll < 0.4 -> should be 6
+            const mockSix = new MockDiceProvider([0.3]);
+            expect(rollDice(true, mockSix)).toBe(6);
+
+            // Case 2: First roll >= 0.4 -> uses second roll
+            // 0.5 (fail weight check) -> then 0.0 -> 1
+            const mockOther = new MockDiceProvider([0.5, 0.0]);
+            expect(rollDice(true, mockOther)).toBe(1);
         });
     });
 
@@ -26,14 +55,17 @@ describe('Dice Engine', () => {
             return state;
         }
 
-        it('should allow the current player to roll', () => {
+        it('should allow the current player to roll and get deterministic result', () => {
             const state = createTestState();
-            const result = handleRollRequest(state, 'player1');
+            const mock = new MockDiceProvider([0.5]); // 0.5 * 6 = 3 -> 4
+            // Wait: floor(0.5 * 6) = 3. 3+1 = 4.
+
+            const result = handleRollRequest(state, 'player1', mock);
 
             expect(result.success).toBe(true);
-            expect(result.diceValue).toBeGreaterThanOrEqual(1);
-            expect(result.diceValue).toBeLessThanOrEqual(6);
+            expect(result.diceValue).toBe(4);
             expect(result.newState.gamePhase).toBe('MOVING');
+            expect(result.newState.currentDiceValue).toBe(4);
         });
 
         it('should reject roll from wrong player (not their turn)', () => {
