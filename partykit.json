@@ -1,5 +1,6 @@
 {
     "name": "ludo-king",
     "main": "src/server.ts",
-    "compatibilityDate": "2024-02-14"
+    "compatibilityDate": "2024-02-14",
+    "serve": "dist/client"
 }
