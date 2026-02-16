@@ -178,18 +178,8 @@ export function getPawn3DPosition(color: PlayerColor, logicalPosition: number): 
     }
 
     // 4. Main Track
-    // Convert logical pos (1-52) relative to color logic, to global index (1-52)
-    // The `toGlobalPosition` helper in board.ts does this!
-    // We can't import `toGlobalPosition` if it creates a cycle... 
-    // `renderPath` -> `board` -> `types` is fine.
-    // `board` doesn't import `renderPath`.
-
-    const { toGlobalPosition } = require('./board'); // Dynamic import to be safe? 
-    // Or just import at top. Circular dependency `board` <-> `renderPath` is unlikely unless board imports renderPath.
-    // checked board.ts, it only imports types. So safe to import board.
-
-    // Actually, `toGlobalPosition` needs the imported version. I'll duplicate the logic or use import.
-    // Let's trust the import.
+    // Convert logical position to global board position using the board constants
+    // We calculate the global position directly using the start positions from BOARD
 
     // Wait, `toGlobalPosition` returns -1 for non-track.
     // We already handled non-track cases.

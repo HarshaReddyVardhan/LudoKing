@@ -1,4 +1,4 @@
-import { getGridCoord } from './boardMapping';
+import { getGridCoord } from '@shared/boardMapping';
 import { GameState, Pawn } from './types';
 import { sendMoveRequest } from './socket';
 

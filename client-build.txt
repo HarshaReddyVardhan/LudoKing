@@ -1,0 +1,7 @@
+﻿
+> client@0.0.0 build
+> tsc && vite build
+
+../src/shared/renderPath.test.ts(4,1): error TS6133: 'PlayerColor' is declared but its value is never read.
+../src/shared/renderPath.ts(122,11): error TS6133: 'radius' is declared but its value is never read.
+../src/shared/renderPath.ts(124,9): error TS6133: 'angle' is declared but its value is never read.
