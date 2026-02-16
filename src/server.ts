@@ -8,7 +8,7 @@ import { simpleBotDecide } from "./logic/simpleBot";
 
 // Turn timeout in milliseconds (30 seconds)
 // Turn timeout in milliseconds (2 minutes)
-const TURN_TIMEOUT_MS = 120 * 1000;
+const TURN_TIMEOUT_MS = 30 * 1000;
 
 // Message types from client
 interface RollRequest {
@@ -35,6 +35,7 @@ export default class LudoServer implements Party.Server {
     gameState: GameState;
     roomCode: string;
     turnStartTime: number = 0;
+    private skippedTurns: Map<string, number> = new Map();
 
     constructor(readonly room: Party.Room) {
         this.roomCode = this.room.id;
@@ -70,7 +71,10 @@ export default class LudoServer implements Party.Server {
         }
 
         // Cancel timeout on any valid action from current player
-        this.cancelTurnTimer();
+        // Note: We don't verify player here, but handleRoll/handleMove will verify turn and reset specific counters.
+        // Actually, we should probably ONLY cancel if it's a valid message?
+        // But let's leave this generic cancel for now, and handle specific resets in methods.
+        // this.cancelTurnTimer(); // MOVED to inside handlers to be safer/more specific
 
         switch (parsed.type) {
             case 'JOIN_REQUEST':
@@ -259,6 +263,9 @@ export default class LudoServer implements Party.Server {
             return;
         }
 
+        this.skippedTurns.set(conn.id, 0); // Reset skip count on valid activity
+        this.cancelTurnTimer(); // Cancel previous timer
+
         this.gameState = result.newState;
         const validPawnIds = getValidPawnIds(this.gameState);
 
@@ -299,6 +306,9 @@ export default class LudoServer implements Party.Server {
             conn.send(JSON.stringify({ type: 'MOVE_REJECTED', error: 'Not your turn' }));
             return;
         }
+
+        this.skippedTurns.set(conn.id, 0); // Reset skip count on valid activity
+        this.cancelTurnTimer(); // Cancel timer
 
         if (this.gameState.gamePhase !== 'MOVING') {
             conn.send(JSON.stringify({ type: 'MOVE_REJECTED', error: 'Must roll first' }));
@@ -375,7 +385,8 @@ export default class LudoServer implements Party.Server {
             // Execute bot turn after a short delay (for better UX)
             this.room.storage.setAlarm(Date.now() + 1000);
         } else {
-            // Schedule alarm for timeout for human players
+            // Schedule alarm for timeout for human players (30s)
+            // Use the room storage alarm which persists
             this.room.storage.setAlarm(Date.now() + TURN_TIMEOUT_MS);
         }
 
@@ -393,22 +404,52 @@ export default class LudoServer implements Party.Server {
     }
 
     async onAlarm() {
-        // Timer expired - check if it was a human timeout or just a bot step
+        // Timer expired
         const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
 
-        if (!currentPlayer?.isBot) {
-            console.log(`Turn timeout for ${this.gameState.currentTurn} - bot taking over`);
+        if (!currentPlayer) return;
 
-            // Notify players about bot takeover
-            this.room.broadcast(JSON.stringify({
-                type: 'BOT_TAKEOVER',
-                player: this.gameState.currentTurn,
-                reason: 'Turn timeout',
-            }));
+        if (currentPlayer.isBot) {
+            // Bot logic
+            await this.update();
+            return;
         }
 
-        // Execute bot action (tick)
-        await this.update();
+        // Human player timed out
+        const currentSkips = (this.skippedTurns.get(currentPlayer.id) || 0) + 1;
+        this.skippedTurns.set(currentPlayer.id, currentSkips);
+
+        console.log(`Player ${currentPlayer.name} timed out. Skips: ${currentSkips}`);
+
+        if (currentSkips >= 3) {
+            // Kick logic
+            const playerToKick = currentPlayer;
+
+            // 1. Advance turn first to ensure game flow continues
+            this.skipTurn();
+
+            // 2. Remove player and their pawns
+            this.gameState.players = this.gameState.players.filter(p => p.id !== playerToKick.id);
+            this.gameState.pawns = this.gameState.pawns.filter(p => p.color !== playerToKick.color);
+
+            // 3. Notify everyone
+            this.room.broadcast(JSON.stringify({
+                type: 'PLAYER_KICKED',
+                playerId: playerToKick.id,
+                reason: 'AFK_TIMEOUT'
+            }));
+
+            this.broadcastState();
+
+            // Check if game should end due to lack of players?
+            if (this.gameState.players.length < 2) {
+                // Optionally handle game end here, but keeping it simple for now.
+            }
+
+        } else {
+            // Just skip turn
+            this.skipTurn();
+        }
     }
 
     private async update() {
