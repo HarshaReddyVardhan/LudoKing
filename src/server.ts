@@ -93,7 +93,7 @@ export default class LudoServer implements Party.Server {
 
                     // Only host (first player) can start
                     const host = this.gameState.players[0];
-                    if (!host || host.id !== sender.id) {
+                    if (!host || host.connectionId !== sender.id) {
                         sender.send(JSON.stringify({ type: 'ERROR', code: 'NOT_HOST', message: 'Only the host can start the game' }));
                         return;
                     }
@@ -131,7 +131,8 @@ export default class LudoServer implements Party.Server {
             conn.id,
             name,
             create,
-            playerId
+            playerId,
+            totalPlayers
         );
 
         if (!result.success) {
@@ -232,7 +233,7 @@ export default class LudoServer implements Party.Server {
             return;
         }
 
-        const player = this.gameState.players.find(p => p.id === conn.id);
+        const player = this.gameState.players.find(p => p.connectionId === conn.id);
         if (!player) {
             conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: 'Player not found' }));
             return;

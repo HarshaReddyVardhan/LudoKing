@@ -17,7 +17,8 @@ export interface Pawn {
 }
 
 export interface Player {
-    id: string; // connection id
+    id: string; // stable player id (persisted)
+    connectionId: string; // transient socket id
     name: string;
     color: PlayerColor;
     isBot: boolean;
@@ -40,6 +41,7 @@ export interface GameState {
     currentDiceValue: number | null;
     gamePhase: 'WAITING' | 'ROLLING' | 'MOVING' | 'FINISHED';
     roomCode: string;
+    maxPlayers: number; // Configurable limit (2-4)
     lastUpdate: number;
     lastMove: MoveLog | null; // For Rewind/History
     winner?: PlayerColor;

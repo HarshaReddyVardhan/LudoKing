@@ -78,8 +78,9 @@ export function handlePlayerReconnection(
 
     console.log(`Reconnecting player ${existingPlayer.name} (${existingPlayer.id} -> ${newConnectionId})`);
 
-    // Update player ID to new connection ID
-    existingPlayer.id = newConnectionId;
+    // Update player connection ID (keep stable ID same)
+    existingPlayer.connectionId = newConnectionId;
+    existingPlayer.isActive = true;
 
     return {
         success: true,
@@ -105,12 +106,12 @@ export function validateJoinRequest(
     }
 
     // Check if room is full
-    if (playerCount >= MAX_PLAYERS_PER_ROOM) {
-        return { valid: false, error: 'Room is full (max 4 players)' };
+    if (playerCount >= gameState.maxPlayers) {
+        return { valid: false, error: `Room is full (max ${gameState.maxPlayers} players)` };
     }
 
     // Check for duplicate connection
-    const alreadyJoined = gameState.players.find(p => p.id === connectionId);
+    const alreadyJoined = gameState.players.find(p => p.connectionId === connectionId);
     if (alreadyJoined) {
         // This is actually a success case - player already joined
         return { valid: true };
@@ -125,7 +126,8 @@ export function validateJoinRequest(
 export function addPlayerToGame(
     gameState: GameState,
     connectionId: string,
-    name: string
+    name: string,
+    stableId?: string
 ): JoinResult {
     // Get available color
     const availableColor = getAvailableColor(gameState);
@@ -135,7 +137,7 @@ export function addPlayerToGame(
     }
 
     // Create player and pawns
-    const player = createPlayer(connectionId, name, availableColor);
+    const player = createPlayer(connectionId, name, availableColor, stableId);
     const pawns = initializePawns(availableColor);
 
     // Update game state
@@ -161,8 +163,13 @@ export function handlePlayerJoin(
     connectionId: string,
     name: string,
     create: boolean = false,
-    playerId?: string
+    playerId?: string,
+    totalPlayers?: number
 ): JoinResult {
+    // 0. Update maxPlayers if creating and specified
+    if (create && totalPlayers && gameState.players.length === 0) {
+        gameState.maxPlayers = Math.max(2, Math.min(4, totalPlayers));
+    }
     // 1. Handle reconnection if playerId provided
     if (playerId) {
         const reconnectResult = handlePlayerReconnection(gameState, playerId, connectionId);
@@ -178,7 +185,7 @@ export function handlePlayerJoin(
     }
 
     // 3. Check if already joined (return success)
-    const alreadyJoined = gameState.players.find(p => p.id === connectionId);
+    const alreadyJoined = gameState.players.find(p => p.connectionId === connectionId);
     if (alreadyJoined) {
         return {
             success: true,
@@ -188,7 +195,7 @@ export function handlePlayerJoin(
     }
 
     // 4. Add new player
-    return addPlayerToGame(gameState, connectionId, name);
+    return addPlayerToGame(gameState, connectionId, name, playerId);
 }
 
 // =====================
@@ -199,7 +206,7 @@ export function handlePlayerJoin(
  * Creates and adds a bot player to the game
  */
 export function addBotToGame(gameState: GameState): JoinResult {
-    if (gameState.players.length >= MAX_PLAYERS_PER_ROOM) {
+    if (gameState.players.length >= gameState.maxPlayers) {
         return { success: false, error: 'Room is full' };
     }
 
@@ -211,7 +218,8 @@ export function addBotToGame(gameState: GameState): JoinResult {
     const botId = `bot-${Date.now()}-${Math.random()}`;
     const botName = `Bot ${availableColor}`;
 
-    const player = createPlayer(botId, botName, availableColor);
+    // For bots, connectionId is same as id
+    const player = createPlayer(botId, botName, availableColor, botId);
     player.isBot = true;
 
     const pawns = initializePawns(availableColor);
@@ -265,8 +273,8 @@ export function createRoomInfoMessage(roomCode: string, gameState: GameState) {
         type: "ROOM_INFO",
         roomCode,
         playerCount: currentPlayerCount,
-        maxPlayers: MAX_PLAYERS_PER_ROOM,
-        isFull: currentPlayerCount >= MAX_PLAYERS_PER_ROOM,
+        maxPlayers: gameState.maxPlayers,
+        isFull: currentPlayerCount >= gameState.maxPlayers,
     };
 }
 

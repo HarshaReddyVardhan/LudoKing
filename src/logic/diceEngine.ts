@@ -62,7 +62,7 @@ export function handleRollRequest(
         return { success: false, newState: state, error: 'Rolling too fast' };
     }
 
-    const player = players.find(p => p.id === requestingPlayerId);
+    const player = players.find(p => p.connectionId === requestingPlayerId);
 
     if (!player) return { success: false, newState: state, error: 'Player not found' };
     if (player.color !== currentTurn) return { success: false, newState: state, error: 'Not your turn' };

@@ -17,6 +17,7 @@ describe('smartBotDecide', () => {
             lastUpdate: 0,
             lastMove: null,
             winner: undefined,
+            maxPlayers: 4,
         };
     }
 

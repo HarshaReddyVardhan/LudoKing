@@ -9,14 +9,16 @@ export function createInitialState(roomCode: string): GameState {
         currentDiceValue: null,
         gamePhase: 'WAITING',
         roomCode,
+        maxPlayers: 4, // Default constant, can be updated
         lastUpdate: Date.now(),
         lastMove: null,
     };
 }
 
-export function createPlayer(id: string, name: string, color: PlayerColor): Player {
+export function createPlayer(connectionId: string, name: string, color: PlayerColor, stableId?: string): Player {
     return {
-        id,
+        id: stableId || crypto.randomUUID(), // Use stable ID if provided, else generate one
+        connectionId,
         name,
         color,
         isBot: false,
