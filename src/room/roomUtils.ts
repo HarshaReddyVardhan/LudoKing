@@ -85,6 +85,8 @@ export function handlePlayerReconnection(
     // Update player connection ID (keep stable ID same)
     existingPlayer.connectionId = newConnectionId;
     existingPlayer.isActive = true;
+    existingPlayer.disconnectedAt = undefined;
+    existingPlayer.disconnectAction = undefined;
 
     // Send immediate sync state to the reconnecting player to ensure they have the latest data including their own update
     if (conn) {

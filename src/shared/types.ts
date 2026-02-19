@@ -39,6 +39,8 @@ export interface Player {
     isBot: boolean;
     isActive: boolean;
     rank?: number; // 1 = 1st, 2 = 2nd, etc.
+    disconnectedAt?: number;
+    disconnectAction?: 'BECOME_BOT' | 'CLOSE_SESSION';
 }
 
 export interface MoveLog {
@@ -136,7 +138,9 @@ const PlayerSchema = z.object({
     color: ColorSchema,
     isBot: z.boolean(),
     isActive: z.boolean(),
-    rank: z.number().optional()
+    rank: z.number().optional(),
+    disconnectedAt: z.number().optional(),
+    disconnectAction: z.enum(['BECOME_BOT', 'CLOSE_SESSION']).optional()
 });
 
 const PawnSchema = z.object({

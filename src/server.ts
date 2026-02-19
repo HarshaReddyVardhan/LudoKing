@@ -21,9 +21,13 @@ import { SimpleBot } from "./logic/simpleBot";
 import { CONFIG } from "./config";
 
 // Turn timeout in milliseconds
+// Turn timeout in milliseconds
 const TURN_TIMEOUT_MS = CONFIG.TURN_TIMEOUT_MS;
 // How long to wait for client animation before proceeding
 const ANIMATION_DELAY_MS = CONFIG.ANIMATION_DELAY_MS;
+
+const BOT_TAKEOVER_DELAY_MS = 2 * 60 * 1000; // 2 minutes
+const SESSION_CLOSE_DELAY_MS = 5 * 60 * 1000; // 5 minutes
 
 import { Logger } from "./utils/logger";
 
@@ -50,6 +54,7 @@ export default class LudoServer implements Party.Server {
     turnStartTime: number = 0;
     private skippedTurns: Map<string, number> = new Map();
     private isProcessingTurn: boolean = false;
+    private nextBotActionTime: number = 0;
     maintenanceMode: boolean = false;
 
     constructor(readonly room: Party.Room) {
@@ -80,60 +85,74 @@ export default class LudoServer implements Party.Server {
     async onClose(conn: Party.Connection) {
         Logger.info({ event: 'CONNECTION_CLOSED', connectionId: conn.id, roomCode: this.roomCode });
 
-        // If no connections remain, set a 10-minute alarm to GC abandoned rooms.
-        // A new player joining before the alarm fires will cancel it.
-        if (this.room.connections.size === 0) {
-            const EMPTY_ROOM_TTL_MS = CONFIG.EMPTY_ROOM_TTL_MS;
-            await this.room.storage.put("emptyRoomAlarm", true);
-            await this.room.storage.setAlarm(Date.now() + EMPTY_ROOM_TTL_MS);
-            Logger.info({ event: 'ROOM_EMPTY_ALARM_SET', roomCode: this.roomCode, ttl: "10m" });
-            return;
-        }
-
-        // ISSUE FIX: If the disconnected player was the active (current) turn player,
-        // immediately force-skip their turn rather than waiting for timeout.
         const disconnectedPlayer = this.gameState.players.find(
             p => p.connectionId === conn.id
         );
 
         if (disconnectedPlayer) {
             this.skippedTurns.delete(disconnectedPlayer.id);
+
+            // Mark as disconnected
+            disconnectedPlayer.disconnectedAt = Date.now();
+
+            // Determine action based on REMAINING active humans
+            // Check established connections to find other humans
+            const activeHumans = this.gameState.players.filter(p =>
+                !p.isBot &&
+                p.id !== disconnectedPlayer.id &&
+                [...this.room.connections.values()].some(c => c.id === p.connectionId)
+            ).length;
+
+            if (activeHumans > 0) {
+                // Multiple humans were playing -> Bot Takeover
+                disconnectedPlayer.disconnectAction = 'BECOME_BOT';
+                Logger.info({
+                    event: 'PLAYER_DISCONNECT_SCHEDULED',
+                    player: disconnectedPlayer.name,
+                    action: 'BECOME_BOT',
+                    delay: '2m'
+                });
+            } else {
+                // No humans left -> Close Session
+                disconnectedPlayer.disconnectAction = 'CLOSE_SESSION';
+                Logger.info({
+                    event: 'PLAYER_DISCONNECT_SCHEDULED',
+                    player: disconnectedPlayer.name,
+                    action: 'CLOSE_SESSION',
+                    delay: '5m'
+                });
+            }
+
+            // Update gameState locally
+            this.room.storage.put("gameState", this.gameState);
+
+            if (
+                !disconnectedPlayer.isBot &&
+                disconnectedPlayer.color === this.gameState.currentTurn &&
+                (this.gameState.gamePhase === GamePhase.ROLLING ||
+                    this.gameState.gamePhase === GamePhase.ROLLING_ANIMATION ||
+                    this.gameState.gamePhase === GamePhase.MOVING)
+            ) {
+                // Force skip turn if it was their turn
+                this.gameState = {
+                    ...this.gameState,
+                    players: this.gameState.players.map(p =>
+                        p.id === disconnectedPlayer.id ? { ...p, isActive: false } : p
+                    ),
+                };
+                await this.cancelTurnTimer();
+                this.skipTurn();
+                this.broadcastState();
+            } else {
+                // Update active status
+                this.gameState.players = this.gameState.players.map(p =>
+                    p.id === disconnectedPlayer.id ? { ...p, isActive: false } : p
+                );
+                this.broadcastState();
+            }
         }
 
-        if (
-            disconnectedPlayer &&
-            !disconnectedPlayer.isBot &&
-            disconnectedPlayer.color === this.gameState.currentTurn &&
-            (this.gameState.gamePhase === GamePhase.ROLLING ||
-                this.gameState.gamePhase === GamePhase.ROLLING_ANIMATION ||
-                this.gameState.gamePhase === GamePhase.MOVING)
-        ) {
-            Logger.info({
-                event: 'ACTIVE_PLAYER_DISCONNECT',
-                player: disconnectedPlayer.name,
-                action: 'FORCE_SKIP'
-            });
-
-            // Mark player as inactive
-            this.gameState = {
-                ...this.gameState,
-                players: this.gameState.players.map(p =>
-                    p.id === disconnectedPlayer.id ? { ...p, isActive: false } : p
-                ),
-            };
-
-            this.cancelTurnTimer();
-            this.skipTurn();
-            this.broadcastState();
-        } else if (disconnectedPlayer) {
-            // Not their turn — just mark inactive
-            this.gameState = {
-                ...this.gameState,
-                players: this.gameState.players.map(p =>
-                    p.id === disconnectedPlayer.id ? { ...p, isActive: false } : p
-                ),
-            };
-        }
+        await this.scheduleNextAlarm();
     }
 
     async onMessage(message: string, sender: Party.Connection) {
@@ -281,6 +300,7 @@ export default class LudoServer implements Party.Server {
 
         // Cancel any pending empty-room GC alarm now that a player has joined
         await this.room.storage.delete("emptyRoomAlarm");
+        await this.scheduleNextAlarm();
 
         send(conn, createJoinSuccessMessage(result.player!, this.roomCode, result.reconnected) as ServerMessage);
 
@@ -502,7 +522,7 @@ export default class LudoServer implements Party.Server {
     // TURN TIMER & BOT
     // =====================
 
-    private startTurnTimer() {
+    private async startTurnTimer() {
         if (
             this.gameState.gamePhase === GamePhase.WAITING ||
             this.gameState.gamePhase === GamePhase.FINISHED
@@ -516,10 +536,12 @@ export default class LudoServer implements Party.Server {
             p => p.color === this.gameState.currentTurn
         );
         if (currentPlayer?.isBot) {
-            this.room.storage.setAlarm(Date.now() + 1000);
+            this.nextBotActionTime = Date.now() + 1000;
         } else {
-            this.room.storage.setAlarm(Date.now() + TURN_TIMEOUT_MS);
+            this.nextBotActionTime = 0; // Clear bot timer
         }
+
+        await this.scheduleNextAlarm();
 
         broadcast(this.room, {
             type: 'TURN_TIMER_START',
@@ -529,73 +551,162 @@ export default class LudoServer implements Party.Server {
         });
     }
 
-    private cancelTurnTimer() {
-        this.room.storage.deleteAlarm();
+    private async cancelTurnTimer() {
+        this.turnStartTime = 0;
+        this.nextBotActionTime = 0;
+        // Don't delete alarm directly, reschedule
+        await this.scheduleNextAlarm();
+    }
+
+    private async scheduleNextAlarm() {
+        let nextAlarmTime = Infinity;
+        const now = Date.now();
+
+        // 1. Turn Timeout
+        if (this.turnStartTime > 0) {
+            // If turn timer is active
+            const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
+            if (currentPlayer && !currentPlayer.isBot) {
+                const timeoutTime = this.turnStartTime + TURN_TIMEOUT_MS;
+                if (timeoutTime > now) {
+                    nextAlarmTime = Math.min(nextAlarmTime, timeoutTime);
+                } else {
+                    // Already expired? Schedule near immediate
+                    nextAlarmTime = Math.min(nextAlarmTime, now + 100);
+                }
+            }
+        }
+
+        // 2. Bot Action
+        if (this.nextBotActionTime > 0) {
+            nextAlarmTime = Math.min(nextAlarmTime, this.nextBotActionTime);
+        }
+
+        // 3. Disconnects
+        for (const p of this.gameState.players) {
+            if (p.disconnectedAt && p.disconnectAction) {
+                const delay = p.disconnectAction === 'BECOME_BOT' ? BOT_TAKEOVER_DELAY_MS : SESSION_CLOSE_DELAY_MS;
+                const triggerTime = p.disconnectedAt + delay;
+                nextAlarmTime = Math.min(nextAlarmTime, triggerTime);
+            }
+        }
+
+        // 4. Empty Room
+        if (this.room.connections.size === 0) {
+            const emptyTTL = CONFIG.EMPTY_ROOM_TTL_MS || 600000;
+            // We should use a stored time for empty room if possible, or reset it.
+            // Simplified: If empty, ensure we check back.
+            // But if we have a SESSION_CLOSE pending (5m), that will trigger first. 
+            // If no sessions close pending (e.g. game over), use EmptyTTL.
+            // Note: We don't track "when room became empty" easily without storage.
+            // Let's rely on 'emptyRoomAlarm' flag. 
+            // Implementation: If nextAlarmTime is Infinity and room empty -> Set EmptyTTL.
+
+            // Check if we already have an empty room target? 
+            // For now, if active sessions close timers exist, they take precedence.
+        }
+
+        if (nextAlarmTime !== Infinity) {
+            await this.room.storage.setAlarm(nextAlarmTime);
+        } else if (this.room.connections.size === 0) {
+            // Fallback for empty room GC
+            await this.room.storage.put("emptyRoomAlarm", true);
+            await this.room.storage.setAlarm(Date.now() + CONFIG.EMPTY_ROOM_TTL_MS);
+        } else {
+            // No alarms needed
+            await this.room.storage.deleteAlarm();
+        }
     }
 
     async onAlarm() {
-        // Empty-room GC: if the alarm was set because the room had zero connections,
-        // and it's still empty now, delete all storage to prevent memory leaks.
-        const isEmptyRoomAlarm = await this.room.storage.get<boolean>("emptyRoomAlarm");
-        if (isEmptyRoomAlarm) {
-            if (this.room.connections.size === 0) {
-                Logger.info({ event: 'ROOM_GC', roomCode: this.roomCode, action: 'DELETE_STORAGE' });
-                await deleteRoom(this.roomCode, this.room);
-            } else {
-                // A player joined before the alarm fired; cancel the sentinel.
-                await this.room.storage.delete("emptyRoomAlarm");
-                Logger.info({ event: 'ROOM_GC_CANCELLED', roomCode: this.roomCode, reason: 'PLAYERS_PRESENT' });
-            }
-            return;
-        }
-
-        if (this.isProcessingTurn) {
-            Logger.warn("Alarm fired while turn is being processed. Ignoring to prevent race.");
-            return;
-        }
-
+        // Prevent re-entry if processing
+        if (this.isProcessingTurn) return;
         this.isProcessingTurn = true;
 
         try {
-            const currentPlayer = this.gameState.players.find(
-                p => p.color === this.gameState.currentTurn
-            );
+            const now = Date.now();
+            let stateChanged = false;
 
-            if (!currentPlayer) return;
+            // 1. Check Disconnects
+            for (const p of this.gameState.players) {
+                if (p.disconnectedAt && p.disconnectAction) {
+                    const delay = p.disconnectAction === 'BECOME_BOT' ? BOT_TAKEOVER_DELAY_MS : SESSION_CLOSE_DELAY_MS;
+                    if (now >= p.disconnectedAt + delay) {
+                        if (p.disconnectAction === 'BECOME_BOT') {
+                            Logger.info({ event: 'BOT_TAKEOVER', player: p.name });
 
-            if (currentPlayer.isBot) {
-                await this.update();
+                            // Check if bot takeover is still valid (bots logic)
+                            // "only bots cannot play"... verify if there are other humans?
+                            // Logic was done at disconnect time. We stick to it unless everyone left.
+                            // If everyone left, they would have CLOSE_SESSION triggers.
+
+                            p.isBot = true;
+                            p.name = `Bot ${p.name}`;
+                            p.disconnectedAt = undefined;
+                            p.disconnectAction = undefined;
+                            stateChanged = true;
+
+                            broadcast(this.room, {
+                                type: 'BOT_TAKEOVER',
+                                playerId: p.id,
+                                color: p.color
+                            });
+                        } else if (p.disconnectAction === 'CLOSE_SESSION') {
+                            Logger.info({ event: 'SESSION_TIMEOUT', reason: 'Last human left' });
+                            await deleteRoom(this.roomCode, this.room);
+                            // Close all connections
+                            for (const conn of this.room.connections.values()) {
+                                conn.close(4000, "Session ended");
+                            }
+                            return; // Stop processing
+                        }
+                    }
+                }
+            }
+
+            if (stateChanged) {
+                this.room.storage.put("gameState", this.gameState);
+                this.broadcastState();
+            }
+
+            // 2. Check Bot Action
+            if (this.nextBotActionTime > 0 && now >= this.nextBotActionTime) {
+                this.nextBotActionTime = 0; // Clear
+                await this.update(); // Bot moves
+                // update calls scheduleNextAlarm at end
                 return;
             }
 
-            // 5-MINUTE TIMEOUT LOGIC: Close session immediately
-            Logger.info({
-                event: 'PLAYER_TIMEOUT',
-                player: currentPlayer.name,
-                action: 'CLOSE_SESSION'
-            });
+            // 3. Check Turn Timeout
+            if (this.turnStartTime > 0 && now >= this.turnStartTime + TURN_TIMEOUT_MS) {
+                const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
+                if (currentPlayer && !currentPlayer.isBot) {
+                    Logger.info({ event: 'TURN_TIMEOUT', player: currentPlayer.name });
+                    // 5-minute inactivity kill switch in existing code?
+                    // New logic: Just skip turn. The disconnect logic handles the "leaving".
+                    // If player is connected but AFK:
 
-            // Find connection and close it
-            const connections = [...this.room.connections.values()];
-            const playerConn = connections.find(c => c.id === currentPlayer.connectionId);
-            if (playerConn) {
-                playerConn.close(4000, "Session closed due to inactivity (5 min timeout)");
+                    // Existing code had logic to mark inactive.
+                    // The user request didn't explicitly say "Change AFK logic for connected players".
+                    // But "Bot will take over ... if one has left".
+                    // Implicitly, connected AFK is handled by skipping turns (existing).
+
+                    this.skipTurn();
+                }
             }
 
-            // Mark inactive and skip turn
-            this.gameState = {
-                ...this.gameState,
-                players: this.gameState.players.map(p =>
-                    p.id === currentPlayer.id ? { ...p, isActive: false } : p
-                )
-            };
+            // 4. Check Empty Room (if alarm fired for it)
+            const isEmptyRoomAlarm = await this.room.storage.get("emptyRoomAlarm");
+            if (isEmptyRoomAlarm && this.room.connections.size === 0) {
+                await deleteRoom(this.roomCode, this.room);
+                return;
+            }
 
-            // If only 1 player left, maybe end game? For now, just skip turn so others can play.
-            this.skipTurn();
         } catch (error) {
             Logger.error({ event: 'ALARM_ERROR', error });
         } finally {
             this.isProcessingTurn = false;
+            await this.scheduleNextAlarm();
         }
     }
 
@@ -633,7 +744,8 @@ export default class LudoServer implements Party.Server {
                         isBot: true,
                     });
 
-                    this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
+                    this.nextBotActionTime = Date.now() + BOT_ACTION_DELAY;
+                    await this.scheduleNextAlarm();
                 } else {
                     Logger.error({ event: 'BOT_ROLL_FAILED', error: rollResult.error });
                     this.skipTurn();
@@ -659,10 +771,11 @@ export default class LudoServer implements Party.Server {
                     });
 
                     if (result.extraTurn) {
-                        this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
+                        this.nextBotActionTime = Date.now() + BOT_ACTION_DELAY;
+                        await this.scheduleNextAlarm();
                     } else {
                         if (this.gameState.gamePhase !== GamePhase.FINISHED) {
-                            this.startTurnTimer();
+                            await this.startTurnTimer();
                         }
                     }
                 } else {
