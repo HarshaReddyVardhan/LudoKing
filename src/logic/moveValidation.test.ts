@@ -76,8 +76,8 @@ describe('Movement Validation', () => {
         it('should not allow move if blocked by own pawn', () => {
             const state = createTestState();
             state.pawns[0].position = 10; // RED_0
-            state.pawns[1].position = 14; // RED_1 blocks the destination
-            state.currentDiceValue = 4;
+            state.pawns[1].position = 12; // RED_1 blocks the destination (12 is unsafe)
+            state.currentDiceValue = 2;
 
             const validMoves = getValidMoves(state);
 
@@ -111,55 +111,82 @@ describe('Movement Validation', () => {
 
     describe('Capture Detection', () => {
         it('should calculate global positions correctly for collision detection', () => {
-            // toGlobalPosition takes a local step (0-indexed position in player's journey)
-            // and returns the global board position
-
-            // RED: Local step 1 -> Global position 1 (RED's start)
+            // RED: Local step 1 -> Global position 1
             const redStart = toGlobalPosition(1, 'RED');
             expect(redStart).toBe(1);
 
-            // RED: Local step 14 -> Global position 14
-            const redAt14 = toGlobalPosition(14, 'RED');
-            expect(redAt14).toBe(14);
-
-            // BLUE: Local step 1 -> Global position 14 (BLUE's start)
+            // BLUE: Local step 1 -> Global position 14
             const blueStart = toGlobalPosition(1, 'BLUE');
             expect(blueStart).toBe(14);
 
             // This demonstrates collision: RED at local step 14 and BLUE at local step 1
             // are both at global position 14
+            expect(toGlobalPosition(14, 'RED')).toBe(14);
         });
 
-        it('should detect capture on non-safe square', () => {
+        it('should detect capture on non-safe square (Global 15)', () => {
             const state = createTestState();
-            state.pawns[0].position = 10; // RED_0
-            // Place BLUE pawn at position that maps to same global as RED's destination
-            state.pawns[4].position = 1; // BLUE_0 at their start (global position 14)
-            state.currentDiceValue = 4; // RED_0 moves to 14 (same global as BLUE start + offset)
+            const red = state.pawns[0]; // RED_0
+            const blue = state.pawns[4]; // BLUE_0 (first blue pawn)
 
-            // This test may need adjustment based on actual board mapping
-            const validMoves = getValidMoves(state);
-            // Check if any move has willCapture set
-        });
+            // Global 15 is UNSAFE.
+            // Red at Local 14 (Global 14). Moves 1 -> Local 15 (Global 15).
+            red.position = 14;
 
-        it('should correctly detect collision for capture', () => {
-            const state = createTestState();
-            state.currentTurn = 'BLUE'; // Blue moving
+            // Blue at Local 2 (Global 15).
+            // Map Blue: 0->13, 1->14, 2->15.
+            blue.position = 2;
 
-            // Red pawn at 26. (Not a safe square)
-            state.pawns[0].position = 26; // RED_0
-
-            // Blue pawn at 24.
-            state.pawns[4].position = 24; // BLUE_0
-
-            state.currentDiceValue = 2; // 24 + 2 = 26.
+            state.currentDiceValue = 1;
 
             const validMoves = getValidMoves(state);
-            const move = validMoves.find(m => m.pawnId === 'BLUE_0');
+            const move = validMoves.find(m => m.pawnId === red.id);
 
             expect(move).toBeDefined();
-            // Should capture Red at 26.
-            expect(move?.willCapture).toBe(true);
+            expect(move!.to).toBe(15);
+            expect(move!.willCapture).toBe(true);
+
+            // Execute Move
+            const result = executeMove(state, red.id, validMoves);
+
+            const movedRed = result.newState.pawns.find(p => p.id === red.id);
+            const capturedBlue = result.newState.pawns.find(p => p.id === blue.id);
+
+            expect(movedRed!.position).toBe(15);
+            expect(capturedBlue!.position).toBe(BOARD.HOME); // Verify captured pawn is reset to HOME
+            expect(result.extraTurn).toBe(true); // Capture grants extra turn
+        });
+
+        it('should NOT capture on safe square (Global 14)', () => {
+            const state = createTestState();
+            const red = state.pawns[0];
+            const blue = state.pawns[4];
+
+            // Global 14 is SAFE (Star/Start).
+            // Red at Local 13. Moves 1 -> Local 14 (Global 14).
+            red.position = 13;
+
+            // Blue at Local 1 (Global 14).
+            blue.position = 1;
+
+            state.currentDiceValue = 1;
+
+            const validMoves = getValidMoves(state);
+            const move = validMoves.find(m => m.pawnId === red.id);
+
+            expect(move).toBeDefined();
+            expect(move!.to).toBe(14);
+            expect(move!.willCapture).toBe(false);
+
+            // Execute Move
+            const result = executeMove(state, red.id, validMoves);
+
+            const movedRed = result.newState.pawns.find(p => p.id === red.id);
+            const safeBlue = result.newState.pawns.find(p => p.id === blue.id);
+
+            expect(movedRed!.position).toBe(14);
+            expect(safeBlue!.position).toBe(1); // Stays put
+            expect(result.extraTurn).toBe(false);
         });
     });
 

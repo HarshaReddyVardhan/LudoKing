@@ -118,22 +118,23 @@ function isPathBlocked(targetPos: number, allPawns: Pawn[], color: PlayerColor):
     return false;
 }
 
-/**
- * Determines if moving to the target position will result in a capture.
- */
 function shouldCapture(targetPos: number, allPawns: Pawn[], color: PlayerColor): boolean {
-    // Cannot capture in home stretch, home, or goal (logic implicit as opponents can't be there usually, but safe to check)
+    // Cannot capture in home stretch, home, or goal
     if (targetPos > BOARD.MAIN_TRACK_LENGTH) return false;
 
-    const isSafe = isSafeSquare(targetPos);
-    const pawnsAtTarget = allPawns.filter(p => p.position === targetPos);
+    if (isSafeSquare(targetPos)) return false;
 
-    // Capture if opponent is there and it's not a safe square
-    if (!isSafe && pawnsAtTarget.some(p => p.color !== color)) {
-        return true;
-    }
+    const targetGlobalPos = toGlobalPosition(targetPos, color);
 
-    return false;
+    // Check for any opponent pawn at the same global position
+    return allPawns.some(p => {
+        if (p.color === color) return false;
+        // Ignore pawns in safe areas (Home, Goal, Home Stretch)
+        if (p.position === BOARD.HOME || p.position === BOARD.GOAL || p.position >= BOARD.HOME_STRETCH_START) return false;
+
+        const pGlobal = toGlobalPosition(p.position, p.color);
+        return pGlobal === targetGlobalPos;
+    });
 }
 
 /**
@@ -164,13 +165,20 @@ export function executeMove(
 
         for (let i = 0; i < newPawns.length; i++) {
             const p = newPawns[i];
+            // Check if opponent pawn is on the same global square
             if (p.color !== movingPawn.color &&
                 p.position !== BOARD.HOME &&
+                p.position !== BOARD.GOAL &&
                 p.position < BOARD.HOME_STRETCH_START) {
+
                 const pawnGlobalPos = toGlobalPosition(p.position, p.color);
+
                 if (pawnGlobalPos === targetGlobalPos) {
+                    // ACTION: Reset captured pawn to HOME
                     newPawns[i] = { ...p, position: BOARD.HOME };
-                    break;
+                    // Note: Ludo rules typically capture ALL pawns on the spot (if multiple opponents), 
+                    // though typically valid play prevents stacking opponents. 
+                    // We'll continue checking just in case.
                 }
             }
         }
