@@ -132,7 +132,8 @@ export default class LudoServer implements Party.Server {
             name,
             create,
             playerId,
-            totalPlayers
+            totalPlayers,
+            conn
         );
 
         if (!result.success) {

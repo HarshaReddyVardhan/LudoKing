@@ -68,7 +68,8 @@ export function getAvailableColor(gameState: GameState): PlayerColor | null {
 export function handlePlayerReconnection(
     gameState: GameState,
     playerId: string,
-    newConnectionId: string
+    newConnectionId: string,
+    conn?: Party.Connection
 ): JoinResult {
     const existingPlayer = gameState.players.find(p => p.id === playerId);
 
@@ -81,6 +82,11 @@ export function handlePlayerReconnection(
     // Update player connection ID (keep stable ID same)
     existingPlayer.connectionId = newConnectionId;
     existingPlayer.isActive = true;
+
+    // Send immediate sync state to the reconnecting player to ensure they have the latest data including their own update
+    if (conn) {
+        conn.send(JSON.stringify(createStateSyncMessage(gameState)));
+    }
 
     return {
         success: true,
@@ -164,7 +170,8 @@ export function handlePlayerJoin(
     name: string,
     create: boolean = false,
     playerId?: string,
-    totalPlayers?: number
+    totalPlayers?: number,
+    conn?: Party.Connection
 ): JoinResult {
     // 0. Update maxPlayers if creating and specified
     if (create && totalPlayers && gameState.players.length === 0) {
@@ -172,7 +179,8 @@ export function handlePlayerJoin(
     }
     // 1. Handle reconnection if playerId provided
     if (playerId) {
-        const reconnectResult = handlePlayerReconnection(gameState, playerId, connectionId);
+    if (playerId) {
+        const reconnectResult = handlePlayerReconnection(gameState, playerId, connectionId, conn);
         if (reconnectResult.success) {
             return reconnectResult;
         }
