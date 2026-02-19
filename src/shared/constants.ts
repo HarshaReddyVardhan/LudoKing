@@ -1,6 +1,5 @@
 export const PAWNS_PER_PLAYER = 4;
 export const BOARD_PATH_LENGTH = 52;
-export const SAFE_ZONES = [1, 9, 14, 22, 27, 35, 40, 48];
 export const BOARD_DIMENSION = 15;
 export const DICE_MAX_VALUE = 6;
 export const ENTER_BOARD_DICE_ROLL = 6;

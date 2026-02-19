@@ -33,4 +33,8 @@
     --input-bg: #0f3460;
     --btn-red: #e94560;
     --btn-secondary: #16213e;
+    
+    /* Layout */
+    --bg-sidebar: rgba(0, 0, 0, 0.4);
+    --border-sidebar: rgba(255, 255, 255, 0.1);
 }

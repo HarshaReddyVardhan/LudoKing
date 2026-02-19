@@ -58,7 +58,9 @@ function scoreMove(move: ValidMove, state: GameState, baseWeights: BotWeights): 
     }
 
     let score = 0;
-    const { color } = state.pawns.find(p => p.id === move.pawnId)!;
+    const pawn = state.pawns.find(p => p.id === move.pawnId);
+    if (!pawn) return 0;
+    const { color } = pawn;
 
     if (move.willCapture) score += weights.capture;
     if (move.willReachGoal) score += weights.reachGoal;

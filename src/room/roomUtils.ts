@@ -455,31 +455,14 @@ export function createDeltaUpdate(oldState: GameState, newState: GameState): Ser
     if (oldState.pawns.length !== newState.pawns.length) {
         patch.pawns = newState.pawns;
         hasChanges = true;
-    } else {
-        // Simple optimization: check if any pawn moved.
-        // For simplicity in this iteration, if ANY pawn moved, we just send all pawns
-        // to avoid complex diffing logic on client side if client expects full array.
-        // BUT the prompt asked to "send only changed pawns/phase".
-        // If client can handle partial array merge, we send partial.
-        // Let's assume client expects full array for 'pawns' key in PATCH for now to be safe,
-        // OR we need to change client logic.
-        // The prompt says "send only changed pawns/phase".
-        // Let's trust the prompt implies sophisticated client handling or I should implement it.
-        // Given I can't see client code easily, I'll send full pawns if any changed 
-        // to be safe but cleaner than full state.
-        // Actually, let's look at `createDeltaUpdate` requirement again: "send only changed pawns".
+        // Send only changed pawns
         const changedPawns = newState.pawns.filter((p, i) => {
             const oldP = oldState.pawns[i];
             return !oldP || p.position !== oldP.position || p.pawnIndex !== oldP.pawnIndex;
         });
 
         if (changedPawns.length > 0) {
-            // We can't just send partial array unless we change the type of 'pawns' in patch.
-            // GameState.pawns is Pawn[].
-            // If we send a patch with subset, it might overwrite.
-            // Let's settle for sending the full pawn list if changed, avoiding sending players/other metadata.
-            // This is still a huge win over sending full state (players, logs, etc).
-            patch.pawns = newState.pawns;
+            patch.pawns = changedPawns;
             hasChanges = true;
         }
     }

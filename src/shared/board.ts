@@ -5,8 +5,7 @@ import {
     POSITION_GOAL,
     BOARD_PATH_LENGTH,
     HOME_STRETCH_START,
-    HOME_STRETCH_END,
-    SAFE_ZONES
+    HOME_STRETCH_END
 } from './constants';
 
 export const BOARD = {
@@ -33,7 +32,7 @@ export const BOARD = {
     } as Record<PlayerColor, number>,
 
     // Safe squares where pawns cannot be captured
-    SAFE_SQUARES: SAFE_ZONES as readonly number[],
+    SAFE_SQUARES: [1, 9, 14, 22, 27, 35, 40, 48] as readonly number[],
 } as const;
 
 /**
