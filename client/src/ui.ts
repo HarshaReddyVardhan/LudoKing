@@ -1,4 +1,4 @@
-import { getGridCoord } from '@shared/boardMap';
+import { getGridCoord, getBoardZone, isSafeGridCoord } from '@shared/boardMap';
 import type { GameState, Pawn } from '../../src/shared/types';
 import { sendMoveRequest } from './socket';
 
@@ -66,15 +66,15 @@ export function initBoard() {
             cell.dataset.c = c.toString();
 
             // Styling bases
-            if (r <= 6 && c <= 6) cell.className += ' base-area base-green-bg';
-            else if (r <= 6 && c >= 10) cell.className += ' base-area base-yellow-bg';
-            else if (r >= 10 && c <= 6) cell.className += ' base-area base-red-bg';
-            else if (r >= 10 && c >= 10) cell.className += ' base-area base-blue-bg';
+            const zone = getBoardZone(r, c);
+            if (zone) {
+                cell.className += ` base-area base-${zone.toLowerCase()}-bg`;
+            }
 
-            // Check for safe squares (Hardcoded visual check)
-            const isSafe = (r == 9 && c == 3) || (r == 7 && c == 2) || (r == 3 && c == 7) || (r == 2 && c == 9) ||
-                (r == 7 && c == 13) || (r == 9 && c == 14) || (r == 13 && c == 9) || (r == 14 && c == 7);
-            if (isSafe) cell.className += ' safe-square';
+            // Check for safe squares
+            if (isSafeGridCoord(r, c)) {
+                cell.className += ' safe-square';
+            }
 
             board.appendChild(cell);
         }

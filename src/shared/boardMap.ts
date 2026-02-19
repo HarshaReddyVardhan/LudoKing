@@ -181,6 +181,31 @@ export function getCoordinates(index: number): Coordinate {
     return GLOBAL_TRACK[index];
 }
 
+// Indices of safe squares on the global track
+export const SAFE_TRACK_INDICES = [0, 8, 13, 22, 26, 35, 39, 48];
+
+/**
+ * Checks if a grid coordinate represents a safe square (Star)
+ */
+export function isSafeGridCoord(r: number, c: number): boolean {
+    return SAFE_TRACK_INDICES.some(index => {
+        const coord = GLOBAL_TRACK[index];
+        return coord.r === r && coord.c === c;
+    });
+}
+
+/**
+ * Determines the zone (Base) of a grid coordinate
+ * @returns 'RED', 'GREEN', 'YELLOW', 'BLUE' or null
+ */
+export function getBoardZone(r: number, c: number): string | null {
+    if (r <= 6 && c <= 6) return 'GREEN';
+    if (r <= 6 && c >= 10) return 'YELLOW';
+    if (r >= 10 && c <= 6) return 'RED';
+    if (r >= 10 && c >= 10) return 'BLUE';
+    return null;
+}
+
 /**
  * Debug utility to visualize the board path for a specific player color.
  * Returns an ASCII representation of the board with the path marked.

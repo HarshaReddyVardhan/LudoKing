@@ -95,6 +95,10 @@ export default class LudoServer implements Party.Server {
             p => p.connectionId === conn.id
         );
 
+        if (disconnectedPlayer) {
+            this.skippedTurns.delete(disconnectedPlayer.id);
+        }
+
         if (
             disconnectedPlayer &&
             !disconnectedPlayer.isBot &&

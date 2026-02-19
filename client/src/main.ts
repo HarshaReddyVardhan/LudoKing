@@ -1,5 +1,4 @@
 import './style.css';
-import './style.css';
 import type { GameState, ServerMessage } from '../../src/shared/types';
 import * as Socket from './socket';
 import * as UI from './ui';
