@@ -135,6 +135,11 @@ export interface SyncStateMsg {
     state: GameState;
 }
 
+export interface PatchStateMsg {
+    type: 'PATCH_STATE';
+    patch: Partial<GameState>;
+}
+
 export interface DiceResultMsg {
     type: 'DICE_RESULT';
     diceValue: number;
@@ -200,6 +205,7 @@ export type ServerMessage =
     | JoinRejectedMsg
     | PlayerJoinedMsg
     | SyncStateMsg
+    | PatchStateMsg
     | DiceResultMsg
     | MoveExecutedMsg
     | TurnSkippedMsg

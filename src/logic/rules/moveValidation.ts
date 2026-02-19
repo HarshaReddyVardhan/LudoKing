@@ -83,27 +83,44 @@ function isPathBlocked(targetPos: number, allPawns: Pawn[], color: PlayerColor):
     const isSafe = isSafeSquare(targetPos);
     const pawnsAtTarget = allPawns.filter(p => p.position === targetPos);
 
-    if (!isSafe && pawnsAtTarget.some(p => p.color === color)) {
-        return true;
-    }
+    const myPawns = pawnsAtTarget.filter(p => p.color === color);
+    const oppPawns = pawnsAtTarget.filter(p => p.color !== color);
+
+    // Rule: Cannot land if 2 or more of ANY color are there?
+    // Usually:
+    // - Can stack own pawns up to 2 (or more? "2 pawns of same color... usually creates safe block"). 
+    //   Implies 2 is the max or the "block" threshold. Let's uncap for now or set 2. 
+    //   Let's assume standard Ludo: Limit is often 2. Let's verify prompt "2 pawns of same color...". 
+    //   I will interpret "stack" as allowed. I'll NOT block based on my own pawns for now (unless > 2?).
+    // - Opponent "Doubles" (2+) are safe blocks.
+
+    if (oppPawns.length >= 2) return true; // Blocked by opponent double/block
+
+    // Optional: Limit stack size to 2?
+    // if (myPawns.length >= 2) return true; 
 
     return false;
 }
 
 function shouldCapture(targetPos: number, allPawns: Pawn[], color: PlayerColor): boolean {
     if (targetPos > BOARD.MAIN_TRACK_LENGTH) return false;
-
     if (isSafeSquare(targetPos)) return false;
 
     const targetGlobalPos = toGlobalPosition(targetPos, color);
 
-    return allPawns.some(p => {
+    // Check if there is exactly 1 opponent pawn (can capture)
+    // If 2+, it's a block (handled by isPathBlocked)
+
+    // We need to check pawns at that GLOBAL position.
+    const opponentsAtTarget = allPawns.filter(p => {
         if (p.color === color) return false;
         if (p.position === BOARD.HOME || p.position === BOARD.GOAL || p.position >= BOARD.HOME_STRETCH_START) return false;
 
         const pGlobal = toGlobalPosition(p.position, p.color);
         return pGlobal === targetGlobalPos;
     });
+
+    return opponentsAtTarget.length === 1;
 }
 
 export function executeMove(

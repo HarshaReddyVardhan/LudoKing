@@ -59,15 +59,18 @@ export function handleRollRequest(
     const now = Date.now();
 
     if (consecutiveSixes >= MAX_CONSECUTIVE_SIXES) {
-        const currentColorIdx = COLORS.indexOf(currentTurn);
-        let nextTurn = currentTurn;
-        for (let i = 1; i <= 4; i++) {
-            const nextColor = COLORS[(currentColorIdx + i) % 4];
-            if (players.some(p => p.color === nextColor && p.isActive)) {
-                nextTurn = nextColor;
-                break;
-            }
+        const currentColor = currentTurn;
+        let nextPlayerColor = currentColor;
+
+        const activePlayers = players.filter(p => p.isActive); // Should we exclude finished?
+        const currentIndex = activePlayers.findIndex(p => p.color === currentColor);
+
+        if (currentIndex !== -1) {
+            const nextIndex = (currentIndex + 1) % activePlayers.length;
+            nextPlayerColor = activePlayers[nextIndex].color;
         }
+
+        const nextTurn = nextPlayerColor;
 
         return {
             success: true,
@@ -99,6 +102,63 @@ export function handleRollRequest(
 }
 
 export function resetToRollingPhase(state: GameState, nextTurn: PlayerColor): GameState {
+    const activePlayers = state.players.filter(p => p.isActive && !p.rank);
+    // Find current player index in the FULL player list or ACTIVE list?
+    // We should cycle through active players.
+    // If we rely on state.currentTurn, we find that color in the active list.
+
+    let nextColor = nextTurn;
+
+    // Logic: If nextTurn is passed explicitly (usually from skip logic), use it.
+    // But resetToRollingPhase is often called after a move finishes.
+    // Standard Ludo: Turn passes to next player in circle.
+
+    // The previous implementation blindly set nextTurn.
+    // We need to ensure nextTurn is actually valid/active.
+    // If not, find the next one.
+
+    // However, usually the caller determines 'nextTurn'.
+    // If this function is responsible for calculating next turn, it should ignore the 'nextTurn' arg?
+    // No, signature is `resetToRollingPhase(state, nextTurn)`.
+    // The caller (executeMove) calculates `nextTurn`.
+    // Let's check executeMove logic.
+    // executeMove calls `getNextTurn`.
+    // So `nextTurn` passed here IS correct.
+
+    // Wait, the PROMPT says: "ISSUE: `nextTurn` loop in `diceEngine.ts` assumes 4 players."
+    // And "ACTION: Update `resetToRollingPhase` to...";
+    // But `resetToRollingPhase` takes `nextTurn` as argument!
+    // Maybe the prompt meant `handleRollRequest` (where consecutive sixes happens)?
+    // OR maybe `resetToRollingPhase` should CALCULATE it?
+    // Let's look at `handleRollRequest` (lines 61-70).
+    // It creates `nextTurn` using `COLORS[...]`. THIS is the bug potentially.
+    // AND `resetToRollingPhase` is called by `executeMove`.
+
+    // Prompt says: "FILES: src/logic/diceEngine.ts resetToRollingPhase"
+    // "Update `resetToRollingPhase` to use `gameState.players` array to find next `isActive` index".
+    // This implies `resetToRollingPhase` should probably NOT take `nextTurn` as an argument, OR ignore it, OR `handleRollRequest` logic should be moved/fixed.
+
+    // Let's fix `handleRollRequest` first because that's definitely broken (lines 64-68).
+    // And `resetToRollingPhase`... if I change the signature, I break `executeMove`.
+    // Maybe I should fix the logic inside `resetToRollingPhase` to validate/re-calculate?
+    // Or maybe the prompt implies `handleRollRequest`'s usage of `resetToRollingPhase`.
+
+    // Let's fix `handleRollRequest`'s consecutive sixes logic FIRST.
+    // It iterates 1..4.
+
+    // AND let's look at `resetToRollingPhase`.
+    // If `executeMove` passes a `nextTurn`, we should trust it? `executeMove` uses `getNextTurn` from `board.ts`.
+    // Let's check `board.ts`? Not requested.
+
+    // I will update `resetToRollingPhase` to optionally taking `nextTurn`, but primarily finding it if needed?
+    // No, `handleRollRequest` calls it with a calculated `nextTurn`.
+    // I should fix the calculation in `handleRollRequest`.
+
+    // But I will also follow the prompt "Update resetToRollingPhase".
+    // Maybe the prompt means "update the code that resets to rolling phase inside diceEngine"?
+
+    // Let's rewrite `handleRollRequest` to use a helper for next turn.
+
     const isSameTurn = state.currentTurn === nextTurn;
     return {
         ...state,

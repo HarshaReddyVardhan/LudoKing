@@ -1,5 +1,5 @@
 import type * as Party from "partykit/server";
-import { GameState, ServerMessage, ClientMessageSchema } from "./shared/types";
+import { GameState, ServerMessage, ClientMessageSchema, GamePhase, Color } from "./shared/types";
 import { createInitialState } from "./logic/gameState";
 import { handleRollRequest } from "./logic/diceEngine";
 import { getValidMoves, getValidPawnIds, executeMove } from "./logic/moveValidation";
@@ -13,7 +13,8 @@ import {
     createPlayerJoinedMessage,
     createJoinSuccessMessage,
     createJoinRejectedMessage,
-    deleteRoom
+    deleteRoom,
+    createDeltaUpdate
 } from "./room/roomUtils";
 import { SimpleBot } from "./logic/simpleBot";
 
@@ -83,9 +84,9 @@ export default class LudoServer implements Party.Server {
             disconnectedPlayer &&
             !disconnectedPlayer.isBot &&
             disconnectedPlayer.color === this.gameState.currentTurn &&
-            (this.gameState.gamePhase === 'ROLLING' ||
-                this.gameState.gamePhase === 'ROLLING_ANIMATION' ||
-                this.gameState.gamePhase === 'MOVING')
+            (this.gameState.gamePhase === GamePhase.ROLLING ||
+                this.gameState.gamePhase === GamePhase.ROLLING_ANIMATION ||
+                this.gameState.gamePhase === GamePhase.MOVING)
         ) {
             console.log(
                 `Active player ${disconnectedPlayer.name} disconnected mid-turn — force skipping.`
@@ -173,12 +174,12 @@ export default class LudoServer implements Party.Server {
                         return;
                     }
 
-                    if (this.gameState.gamePhase !== 'WAITING') {
+                    if (this.gameState.gamePhase !== GamePhase.WAITING) {
                         return;
                     }
 
-                    this.gameState.gamePhase = 'ROLLING';
-                    this.gameState.currentTurn = 'RED';
+                    this.gameState.gamePhase = GamePhase.ROLLING;
+                    this.gameState.currentTurn = Color.RED;
 
                     this.startTurnTimer();
                     this.broadcastState();
@@ -283,7 +284,7 @@ export default class LudoServer implements Party.Server {
         // The server moves to MOVING only after ANIMATION_ACK (or timeout fallback).
         this.gameState = {
             ...this.gameState,
-            gamePhase: 'ROLLING_ANIMATION',
+            gamePhase: GamePhase.ROLLING_ANIMATION,
         };
         this.room.storage.put("gameState", this.gameState);
 
@@ -298,16 +299,16 @@ export default class LudoServer implements Party.Server {
         if (validPawnIds.length === 0) {
             setTimeout(() => {
                 // Re-read state in case ACK already arrived
-                if (this.gameState.gamePhase === 'ROLLING_ANIMATION') {
-                    this.gameState = { ...this.gameState, gamePhase: 'MOVING' };
+                if (this.gameState.gamePhase === GamePhase.ROLLING_ANIMATION) {
+                    this.gameState = { ...this.gameState, gamePhase: GamePhase.MOVING };
                 }
                 this.skipTurn();
                 this.broadcastState();
             }, ANIMATION_DELAY_MS);
         } else {
             setTimeout(() => {
-                if (this.gameState.gamePhase === 'ROLLING_ANIMATION') {
-                    this.gameState = { ...this.gameState, gamePhase: 'MOVING' };
+                if (this.gameState.gamePhase === GamePhase.ROLLING_ANIMATION) {
+                    this.gameState = { ...this.gameState, gamePhase: GamePhase.MOVING };
                     this.startTurnTimer();
                     this.broadcastState();
                 }
@@ -320,11 +321,11 @@ export default class LudoServer implements Party.Server {
      * This allows the server to transition to MOVING earlier than the fallback timeout.
      */
     private handleAnimationAck(conn: Party.Connection) {
-        if (this.gameState.gamePhase !== 'ROLLING_ANIMATION') return;
+        if (this.gameState.gamePhase !== GamePhase.ROLLING_ANIMATION) return;
 
         const validPawnIds = getValidPawnIds(this.gameState);
 
-        this.gameState = { ...this.gameState, gamePhase: 'MOVING' };
+        this.gameState = { ...this.gameState, gamePhase: GamePhase.MOVING };
 
         if (validPawnIds.length === 0) {
             this.skipTurn();
@@ -340,6 +341,8 @@ export default class LudoServer implements Party.Server {
             send(conn, { type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' });
             return;
         }
+
+        const oldState = this.gameState;
 
         const player = this.gameState.players.find(p => p.connectionId === conn.id);
         if (!player) {
@@ -360,7 +363,9 @@ export default class LudoServer implements Party.Server {
         this.skippedTurns.set(conn.id, 0);
         this.cancelTurnTimer();
 
-        if (this.gameState.gamePhase !== 'MOVING') {
+        this.cancelTurnTimer();
+
+        if (this.gameState.gamePhase !== GamePhase.MOVING) {
             send(conn, { type: 'ERROR', code: 'MOVE_FAILED', message: 'Must roll first' });
             return;
         }
@@ -383,11 +388,11 @@ export default class LudoServer implements Party.Server {
             extraTurn: result.extraTurn ?? false,
         });
 
-        if (this.gameState.gamePhase !== 'FINISHED') {
+        if (this.gameState.gamePhase !== GamePhase.FINISHED) {
             this.startTurnTimer();
         }
 
-        this.broadcastState();
+        this.broadcastState(oldState);
     }
 
     private skipTurn() {
@@ -408,7 +413,7 @@ export default class LudoServer implements Party.Server {
             ...this.gameState,
             currentTurn: activePlayers[nextIndex],
             currentDiceValue: null,
-            gamePhase: 'ROLLING',
+            gamePhase: GamePhase.ROLLING,
             consecutiveSixes: 0,
             lastUpdate: Date.now(),
         };
@@ -428,8 +433,8 @@ export default class LudoServer implements Party.Server {
 
     private startTurnTimer() {
         if (
-            this.gameState.gamePhase === 'WAITING' ||
-            this.gameState.gamePhase === 'FINISHED'
+            this.gameState.gamePhase === GamePhase.WAITING ||
+            this.gameState.gamePhase === GamePhase.FINISHED
         ) {
             return;
         }
@@ -514,8 +519,8 @@ export default class LudoServer implements Party.Server {
     private async update() {
         try {
             if (
-                this.gameState.gamePhase === 'FINISHED' ||
-                this.gameState.gamePhase === 'WAITING'
+                this.gameState.gamePhase === GamePhase.FINISHED ||
+                this.gameState.gamePhase === GamePhase.WAITING
             ) {
                 return;
             }
@@ -573,7 +578,7 @@ export default class LudoServer implements Party.Server {
                     if (result.extraTurn) {
                         this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
                     } else {
-                        if (this.gameState.gamePhase !== 'FINISHED') {
+                        if (this.gameState.gamePhase !== GamePhase.FINISHED) {
                             this.startTurnTimer();
                         }
                     }
@@ -592,12 +597,17 @@ export default class LudoServer implements Party.Server {
         }
     }
 
-    private broadcastState() {
+    private broadcastState(oldState?: GameState) {
         this.room.storage.put("gameState", this.gameState);
-        broadcast(this.room, {
-            type: 'SYNC_STATE',
-            state: this.gameState,
-        });
+
+        if (oldState) {
+            broadcast(this.room, createDeltaUpdate(oldState, this.gameState));
+        } else {
+            broadcast(this.room, {
+                type: 'SYNC_STATE',
+                state: this.gameState,
+            });
+        }
     }
 
     onRequest(req: Party.Request) {
