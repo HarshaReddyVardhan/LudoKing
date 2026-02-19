@@ -321,22 +321,52 @@
             }, 1000);
         }
 
-        $('connectBtn').addEventListener('click', () => {
-            const roomId = $('roomIdInput').value.trim() || 'test-room';
+        let retryCount = 0;
+        const maxRetries = 5;
+        let isReconnecting = false;
+        let lastRoomId = 'test-room';
+
+        function connect(roomId = 'test-room') {
+            lastRoomId = roomId;
             const url = `ws://${PARTYKIT_HOST}/parties/main/${roomId}`;
 
-            log(`Connecting to ${url}...`, 'info');
+            if (!isReconnecting) {
+                log(`Connecting to ${url}...`, 'info');
+            } else {
+                log(`Reconnecting (Attempt ${retryCount + 1}/${maxRetries})...`, 'warning');
+            }
+
+            if (ws) {
+                try {
+                    ws.close();
+                } catch (e) { }
+            }
 
             ws = new WebSocket(url);
 
             ws.onopen = () => {
                 log('Connected!', 'info');
                 updateStatus(true);
+                retryCount = 0;
+                isReconnecting = false;
+
+                // If we were in a game, maybe we should re-join or just wait for state sync?
+                // The server usually sends SYNC_STATE on connect.
             };
 
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 log(`← ${event.data}`, 'recv');
+
+                // Reset optimistic UI states if we receive a relevant message
+                if (data.type === 'MOVE_EXECUTED' || data.type === 'ERROR') {
+                    $('moveBtn').textContent = 'Move';
+                    $('moveBtn').disabled = false;
+                    // If error, revert optimistic clear of valid pawns?
+                    // Hard to revert without keeping history.
+                    // But SYNC_STATE usually follows or precedes.
+                    // Actually, if ERROR, we probably need to wait for a state sync or just re-enable.
+                }
 
                 switch (data.type) {
                     case 'ROOM_INFO':
@@ -348,13 +378,19 @@
                         $('gamePhase').textContent = data.state.gamePhase;
                         $('currentTurn').textContent = data.state.currentTurn;
                         updatePlayers(data.state.players);
+
+                        // If we are mid-turn (reconnected), we might have pawns to move
+                        if (data.state.gamePhase === 'MOVING' && data.state.currentTurn === clientState.myColor) {
+                            // We don't have validPawnIds in SYNC_STATE usually?
+                            // We might need to ask or derive them. 
+                            // For now, we wait for DICE_RESULT or user to try interaction.
+                        }
                         break;
                     case 'DICE_RESULT':
                         clientState.validPawnIds = data.validPawnIds || [];
                         $('diceResult').textContent = `Rolled: ${data.diceValue}${data.isBot ? ' (BOT)' : ''}`;
                         $('validPawns').textContent = clientState.validPawnIds.join(', ') || 'None';
-                        // Send ANIMATION_ACK after animation completes (~2s)
-                        // This signals the server to transition from ROLLING_ANIMATION → MOVING
+
                         if (!data.isBot) {
                             setTimeout(() => {
                                 if (ws && ws.readyState === WebSocket.OPEN) {
@@ -386,6 +422,15 @@
                         log(`⏭️ Turn skipped: ${data.reason}`, 'info');
                         break;
                     case 'ERROR':
+                        log(`Error: ${data.code} - ${data.message}`, 'error');
+
+                        // Revert optimistic changes on error
+                        if (data.code === 'MOVE_FAILED' || data.code === 'ROLL_FAILED') {
+                            // Re-enable controls if they were disabled
+                            $('moveBtn').disabled = false;
+                            $('rollBtn').disabled = false;
+                        }
+                        break;
                     case 'JOIN_REJECTED':
                     case 'ROLL_REJECTED':
                     case 'MOVE_REJECTED':
@@ -397,45 +442,28 @@
             ws.onclose = () => {
                 log('Disconnected', 'error');
                 updateStatus(false);
+
+                if (retryCount < maxRetries) {
+                    isReconnecting = true;
+                    const delay = Math.pow(2, retryCount) * 1000;
+                    log(`Waiting ${delay / 1000}s to reconnect...`, 'warning');
+                    setTimeout(() => connect(lastRoomId), delay);
+                    retryCount++;
+                } else {
+                    log('Max retries reached. Please refresh.', 'error');
+                }
             };
 
             ws.onerror = (err) => {
                 log(`WebSocket error`, 'error');
+                // onClose will handle reconnection
             };
-        });
+        }
 
-        $('createBtn').addEventListener('click', () => {
-            const name = $('nameInput').value.trim() || 'Player';
-            const msg = JSON.stringify({ type: 'JOIN_REQUEST', name, create: true });
-            log(`→ ${msg}`, 'send');
-            ws.send(msg);
-        });
-
-        $('joinBtn').addEventListener('click', () => {
-            const name = $('nameInput').value.trim() || 'Player';
-            const msg = JSON.stringify({ type: 'JOIN_REQUEST', name, create: false });
-            log(`→ ${msg}`, 'send');
-            ws.send(msg);
-        });
-
-        $('rollBtn').addEventListener('click', () => {
-            // Client-side guard: must be your turn and in ROLLING phase
-            if (!clientState.myColor) {
-                log('You have not joined the game yet', 'error');
-                return;
-            }
-            if (clientState.currentTurn !== clientState.myColor) {
-                log(`Not your turn! Current turn: ${clientState.currentTurn}`, 'error');
-                return;
-            }
-            if (clientState.gamePhase !== 'ROLLING') {
-                log(`Cannot roll: game is in ${clientState.gamePhase} phase (must be ROLLING)`, 'error');
-                return;
-            }
-
-            const msg = JSON.stringify({ type: 'ROLL_REQUEST' });
-            log(`→ ${msg}`, 'send');
-            ws.send(msg);
+        $('connectBtn').addEventListener('click', () => {
+            const roomId = $('roomIdInput').value.trim() || 'test-room';
+            retryCount = 0; // Reset retries on manual connect
+            connect(roomId);
         });
 
         $('moveBtn').addEventListener('click', () => {
@@ -445,7 +473,7 @@
                 return;
             }
 
-            // Client-side guard: must be your turn and in MOVING phase
+            // Client-side guard
             if (!clientState.myColor) {
                 log('You have not joined the game yet', 'error');
                 return;
@@ -463,9 +491,19 @@
                 return;
             }
 
+            // OPTIMISTIC UPDATE
+            log(`(Optimistic) Moving pawn ${pawnId}...`, 'info');
+            $('moveBtn').textContent = 'Moving...';
+            $('moveBtn').disabled = true;
+
+            // Temporarily clear valid pawns to prevent double-move
+            // We save them in case we need to revert? 
+            // Simplified: just update UI
+            $('validPawns').textContent = 'Processing...';
+
             const msg = JSON.stringify({ type: 'MOVE_REQUEST', pawnId });
             log(`→ ${msg}`, 'send');
-            ws.send(msg);
+            if (ws) ws.send(msg);
         });
 
         $('roomCode').addEventListener('click', async () => {

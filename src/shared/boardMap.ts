@@ -180,3 +180,106 @@ export function getCoordinates(index: number): Coordinate {
     }
     return GLOBAL_TRACK[index];
 }
+
+/**
+ * Debug utility to visualize the board path for a specific player color.
+ * Returns an ASCII representation of the board with the path marked.
+ */
+export function validateBoardPath(color: PlayerColor): string {
+    const grid: string[][] = Array(17).fill(null).map(() => Array(17).fill(' . '));
+
+    // Mark global track
+    for (let i = 0; i < GLOBAL_TRACK.length; i++) {
+        const { r, c } = GLOBAL_TRACK[i];
+        if (r >= 0 && r < 17 && c >= 0 && c < 17) {
+            grid[r][c] = ' . '; // Reset to dot
+        }
+    }
+
+    // Trace player path
+    for (let step = 0; step <= 57; step++) { // 0-51 + 52-57 (home stretch)
+        const globalPos = toGlobalPosition(step, color);
+        // We need to map globalPos to grid coord
+        // Use the existing getGridCoord logic logic, but we need to reconstruct the "position" expected by getGridCoord
+        // getGridCoord expects: 0=base (we skip), 1-52=main, 53-58=home stretch, 59=goal
+
+        // Map local stride (0-57) to the "position" argument for getGridCoord
+        let posArg = 0;
+        if (step < 52) {
+            // toGlobalPosition gives us 0-51.
+            // getGridCoord for main track takes "position" which is ... actually, getGridCoord logic is:
+            // Main Track: loopIndex = (position - 1 + offset) % 52.
+            // But we have the global index directly from toGlobalPosition!
+            // Let's use getCoordinates(globalPos) for main track.
+            if (globalPos !== -1) {
+                const { r, c } = getCoordinates(globalPos);
+                if (r >= 0 && r < 17 && c >= 0 && c < 17) {
+                    grid[r][c] = step.toString().padStart(3, ' ');
+                }
+                continue;
+            }
+        }
+
+        // If globalPos is -1, it's home stretch or goal.
+        // step 51 is the last main track step.
+        // step 52-57 are home stretch? 
+        // Let's check logic:
+        // Main track: 0 to 51.
+        // Home stretch: indices 0-5 in getHomeStretchCoord?
+
+        // Let's rely on getGridCoord.
+        // local step 0 is start?
+        // getGridCoord(color, position)
+        // position 1 = first step on main track.
+        // position 52 = last step on main track.
+        // position 53 = first step on home stretch.
+        // position 57 = ???
+
+        // Let's assume standard Ludo:
+        // Path length is 57 positions?
+        // 52 main + 5 home stretch + 1 goal = 58?
+
+        // Let's just use the Grid Coordinates directly if we can matches.
+
+        // Actually, let's just use getGridCoord with the "position" abstraction used in the game:
+        // position 1 is the start.
+        // position 52 is just before home stretch entry?
+        // position 53-58 is home stretch?
+        // Let's iterate 1 to 59?
+
+        // The prompt says "render the grid coordinates to console/canvas to verify path".
+        // Let's iterate position 1 to 59.
+
+    }
+
+    // Better Approach: Iterate 1 to 59 (Move Logic positions) + Base (0)
+
+    const output: string[] = [];
+
+    output.push(`Path for ${color}:`);
+
+    // Base
+    const base = getGridCoord(color, 0, 0);
+    grid[base.r][base.c] = '[B]';
+
+    // Path 1-58
+    for (let pos = 1; pos <= 58; pos++) { // 1..52 (main), 53..58 (home)
+        const coord = getGridCoord(color, pos);
+        if (coord.r >= 0 && coord.r < 17 && coord.c >= 0 && coord.c < 17) {
+            // Mark direction if possible, or just number
+            grid[coord.r][coord.c] = pos.toString().padStart(3, ' ');
+        }
+    }
+
+    // Goal 59
+    const goal = getGridCoord(color, 59);
+    grid[goal.r][goal.c] = '[G]';
+
+    // Render grid
+    for (let r = 0; r < 17; r++) {
+        output.push(grid[r].join(''));
+    }
+
+    return output.join('\n');
+}
+
