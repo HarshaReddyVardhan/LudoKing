@@ -31,6 +31,11 @@ function handleMessage(data: ServerMessage) {
     case 'SYNC_STATE':
       gameState = data.state;
       UI.renderState(gameState, myColor, validPawnIds);
+      // Update start button visibility/state
+      {
+        const isHost = gameState.players.length > 0 && gameState.players[0]?.color === myColor;
+        UI.updateStartButton(gameState.gamePhase, gameState.players.length, isHost);
+      }
       break;
 
     case 'DICE_RESULT':
@@ -63,7 +68,7 @@ function handleMessage(data: ServerMessage) {
       break;
 
     case 'TURN_TIMER_START':
-      UI.startTimer(data.timeoutMs);
+      UI.startTimer(data.timeoutMs, data.startTime);
       break;
 
     case 'BOT_TAKEOVER':
@@ -193,6 +198,7 @@ UI.showJoinBtn.onclick = showJoinStep;
 UI.confirmJoinBtn.onclick = joinGame;
 
 UI.rollBtn.onclick = Socket.sendRollRequest;
+UI.startBtn.onclick = () => Socket.sendStartGame();
 
 // Enter key support
 UI.joinNameInput.addEventListener('keypress', (e) => {

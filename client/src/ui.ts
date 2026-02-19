@@ -40,6 +40,7 @@ export const botCountPlus = document.getElementById('bot-count-plus') as HTMLBut
 
 // Game UI
 export const rollBtn = document.getElementById('roll-btn') as HTMLButtonElement;
+export const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
 export const diceDisplay = document.getElementById('dice-display')!;
 export const statusEl = document.getElementById('turn-indicator')!;
 export const roomCodeEl = document.getElementById('room-code-text')!;
@@ -112,13 +113,19 @@ export function clearNotifications() {
 
 // Timer Animation
 let timerInterval: number | null = null;
-export function startTimer(durationMs: number) {
+export function startTimer(durationMs: number, startTime: number) {
     if (timerInterval) clearInterval(timerInterval);
-    timerBar.style.width = '100%';
+
+    // Compute how much time has already elapsed since the server started the timer
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, durationMs - elapsed);
+    const pct = remaining / durationMs * 100;
+
     timerBar.style.transition = 'none';
+    timerBar.style.width = `${pct}%`;
 
     setTimeout(() => {
-        timerBar.style.transition = `width ${durationMs}ms linear`;
+        timerBar.style.transition = `width ${remaining}ms linear`;
         timerBar.style.width = '0%';
     }, 50);
 }
@@ -322,6 +329,16 @@ export function updateNumberControls() {
     totalPlayersPlus.disabled = totalPlayers >= 4;
     botCountMinus.disabled = botCount <= 0;
     botCountPlus.disabled = botCount >= (totalPlayers - 1);
+}
+
+export function updateStartButton(gamePhase: string, playerCount: number, isHost: boolean) {
+    if (gamePhase === 'WAITING' && isHost) {
+        startBtn.style.display = '';
+        startBtn.disabled = playerCount < 2;
+        startBtn.title = playerCount < 2 ? 'Need at least 2 players' : '';
+    } else {
+        startBtn.style.display = 'none';
+    }
 }
 
 export function setTotalPlayers(val: number) {

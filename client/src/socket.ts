@@ -111,6 +111,10 @@ export function sendRollRequest() {
     socket?.send(JSON.stringify({ type: 'ROLL_REQUEST' }));
 }
 
+export function sendStartGame() {
+    socket?.send(JSON.stringify({ type: 'START_GAME' }));
+}
+
 export function sendMoveRequest(pawnId: string) {
     socket?.send(JSON.stringify({ type: 'MOVE_REQUEST', pawnId }));
 }

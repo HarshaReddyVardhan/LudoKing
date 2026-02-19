@@ -36,8 +36,6 @@ export function initializePawns(color: PlayerColor): Pawn[] {
 }
 
 export function checkWinCondition(state: GameState): GameState {
-    const finishedPlayersCount = state.players.filter(p => p.rank !== undefined).length;
-    let nextRank = finishedPlayersCount + 1;
     let playersChanged = false;
 
     let newPlayers = state.players.map(player => {
@@ -50,7 +48,9 @@ export function checkWinCondition(state: GameState): GameState {
 
         if (allFinished) {
             playersChanged = true;
-            return { ...player, rank: nextRank++ };
+            // Recalculate rank based on current ranked length to avoid duplicates
+            const currentRank = state.players.filter(p => p.rank !== undefined).length + 1;
+            return { ...player, rank: currentRank };
         }
         return player;
     });
@@ -63,8 +63,9 @@ export function checkWinCondition(state: GameState): GameState {
 
     if (totalPlayers > 1 && playersRemaining === 1) {
         const lastPlayer = unrankedPlayers[0];
+        const lastRank = newPlayers.filter(p => p.rank !== undefined).length + 1;
         newPlayers = newPlayers.map(p =>
-            p.id === lastPlayer.id ? { ...p, rank: nextRank } : p
+            p.id === lastPlayer.id ? { ...p, rank: lastRank } : p
         );
         playersChanged = true;
     }
