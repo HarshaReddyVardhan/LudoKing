@@ -12,6 +12,21 @@ export interface BotStrategy {
     computeNextMove(gameState: GameState, playerColor: string): BotAction;
 }
 
+export function safeComputeNextMove(strategy: BotStrategy, gameState: GameState, playerColor: string): BotAction {
+    const start = Date.now();
+    try {
+        const action = strategy.computeNextMove(gameState, playerColor);
+        if (Date.now() - start > 500) {
+            console.warn(`Bot execution too slow: ${Date.now() - start}ms`);
+            return { type: 'SKIP' };
+        }
+        return action;
+    } catch (error) {
+        console.error("Bot execution error:", error);
+        return { type: 'SKIP' };
+    }
+}
+
 /**
  * Calculates how far a position is from the player's start.
  * Used to prioritize moving pawns closer to the goal.

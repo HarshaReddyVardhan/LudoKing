@@ -39,19 +39,70 @@
             display: inline-block;
         }
 
+        /* Flexbox for form groups to handle wrapping and alignment */
+        .section p {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0;
+        }
+
         input,
         button {
             padding: 10px 16px;
             font-size: 16px;
             border: none;
             border-radius: 4px;
-            margin-right: 8px;
+            /* margin-right: 8px;  <-- Removed in favor of gap */
         }
 
         input {
             background: #0f3460;
             color: #eee;
             width: 200px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+                text-align: center;
+            }
+
+            .section {
+                padding: 12px;
+            }
+
+            /* Stack controls vertically on mobile */
+            .section p {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            input {
+                width: 100%;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            /* Make player cards take full width */
+            .players {
+                flex-direction: column;
+            }
+
+            .player-card {
+                width: 100%;
+            }
+
+            #log {
+                height: 200px;
+            }
         }
 
         button {
@@ -184,6 +235,21 @@
         .player-card.YELLOW {
             background: #ca8a04;
         }
+
+        .pawn-track {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pawn-chip {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
     </style>
 </head>
 
@@ -270,10 +336,28 @@
             $('moveBtn').disabled = !connected;
         }
 
-        function updatePlayers(players) {
-            $('players').innerHTML = players.map(p =>
-                `<div class="player-card ${p.color}">${p.name} (${p.color})</div>`
-            ).join('');
+        function updatePlayers(players, pawns = []) {
+            $('players').innerHTML = players.map(p => {
+                const playerPawns = pawns.filter(token => token.color === p.color);
+
+                // Sort by position to keep them ordered
+                playerPawns.sort((a, b) => a.position - b.position);
+
+                // Create pawn chips. If multiple share a position, the gap/flex layout fans them out.
+                // We could also apply negative margin if we wanted overlap.
+                // Using standard gap ensures they are all visible.
+                const pawnsHtml = playerPawns.map(token =>
+                    `<span class="pawn-chip" title="Pawn ID: ${token.id}">Pos:${token.position}</span>`
+                ).join('');
+
+                return `
+                <div class="player-card ${p.color}">
+                    <div>${p.name} (${p.color})</div>
+                    <div class="pawn-track">
+                        ${pawnsHtml}
+                    </div>
+                </div>`;
+            }).join('');
         }
 
         let countdownInterval = null;
@@ -377,7 +461,7 @@
                         clientState.gamePhase = data.state.gamePhase;
                         $('gamePhase').textContent = data.state.gamePhase;
                         $('currentTurn').textContent = data.state.currentTurn;
-                        updatePlayers(data.state.players);
+                        updatePlayers(data.state.players, data.state.pawns);
 
                         // If we are mid-turn (reconnected), we might have pawns to move
                         if (data.state.gamePhase === 'MOVING' && data.state.currentTurn === clientState.myColor) {

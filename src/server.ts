@@ -18,10 +18,14 @@ import {
 } from "./room/roomUtils";
 import { SimpleBot } from "./logic/simpleBot";
 
-// Turn timeout in milliseconds (30 seconds)
-const TURN_TIMEOUT_MS = 30 * 1000;
-// How long to wait for client animation before proceeding (2 seconds)
+import { CONFIG } from "./config";
+
+// Turn timeout in milliseconds
+const TURN_TIMEOUT_MS = CONFIG.TURN_TIMEOUT_MS;
+// How long to wait for client animation before proceeding
 const ANIMATION_DELAY_MS = 2000;
+
+import { Logger } from "./utils/logger";
 
 // ─── Type-safe send helper ────────────────────────────────────────────────────
 /**
@@ -46,6 +50,7 @@ export default class LudoServer implements Party.Server {
     turnStartTime: number = 0;
     private skippedTurns: Map<string, number> = new Map();
     private isProcessingTurn: boolean = false;
+    maintenanceMode: boolean = false;
 
     constructor(readonly room: Party.Room) {
         this.roomCode = this.room.id;
@@ -60,21 +65,27 @@ export default class LudoServer implements Party.Server {
     }
 
     onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
-        console.log(`Connection established: ${conn.id} in room ${this.roomCode}`);
+        // Allow more connections for spectators, but keep a reasonable hard limit (e.g. 50)
+        // Previous limit was 20. Let's bump to 50 to allow spectators.
+        if (this.room.connections.size > 50) {
+            conn.close(1008, "Too many connections");
+            return;
+        }
+        Logger.info({ event: 'CONNECTION_OPEN', connectionId: conn.id, roomCode: this.roomCode });
         send(conn, createRoomInfoMessage(this.roomCode, this.gameState) as ServerMessage);
         send(conn, createStateSyncMessage(this.gameState) as ServerMessage);
     }
 
     async onClose(conn: Party.Connection) {
-        console.log(`Connection closed: ${conn.id} in room ${this.roomCode}`);
+        Logger.info({ event: 'CONNECTION_CLOSED', connectionId: conn.id, roomCode: this.roomCode });
 
         // If no connections remain, set a 10-minute alarm to GC abandoned rooms.
         // A new player joining before the alarm fires will cancel it.
         if (this.room.connections.size === 0) {
-            const EMPTY_ROOM_TTL_MS = 10 * 60 * 1000; // 10 minutes
+            const EMPTY_ROOM_TTL_MS = CONFIG.EMPTY_ROOM_TTL_MS;
             await this.room.storage.put("emptyRoomAlarm", true);
             await this.room.storage.setAlarm(Date.now() + EMPTY_ROOM_TTL_MS);
-            console.log(`[Room ${this.roomCode}] No connections — scheduled deletion in 10 min.`);
+            Logger.info({ event: 'ROOM_EMPTY_ALARM_SET', roomCode: this.roomCode, ttl: "10m" });
             return;
         }
 
@@ -92,9 +103,11 @@ export default class LudoServer implements Party.Server {
                 this.gameState.gamePhase === GamePhase.ROLLING_ANIMATION ||
                 this.gameState.gamePhase === GamePhase.MOVING)
         ) {
-            console.log(
-                `Active player ${disconnectedPlayer.name} disconnected mid-turn — force skipping.`
-            );
+            Logger.info({
+                event: 'ACTIVE_PLAYER_DISCONNECT',
+                player: disconnectedPlayer.name,
+                action: 'FORCE_SKIP'
+            });
 
             // Mark player as inactive
             this.gameState = {
@@ -118,7 +131,7 @@ export default class LudoServer implements Party.Server {
         }
     }
 
-    onMessage(message: string, sender: Party.Connection) {
+    async onMessage(message: string, sender: Party.Connection) {
         let json: unknown;
         try {
             json = JSON.parse(message);
@@ -129,7 +142,7 @@ export default class LudoServer implements Party.Server {
 
         const result = ClientMessageSchema.safeParse(json);
         if (!result.success) {
-            console.error("Validation error:", result.error);
+            Logger.error({ event: 'VALIDATION_ERROR', error: result.error });
             send(sender, { type: 'ERROR', code: 'INVALID_FORMAT', message: 'Invalid message format' });
             return;
         }
@@ -198,7 +211,7 @@ export default class LudoServer implements Party.Server {
                     send(sender, { type: 'ERROR', code: 'UNKNOWN_TYPE', message: 'Unknown message type' });
             }
         } catch (err) {
-            console.error("Game Logic Processing Error:", err);
+            Logger.error({ event: 'GAME_LOGIC_ERROR', error: err });
             send(sender, {
                 type: 'ERROR',
                 code: 'INTERNAL_ERROR',
@@ -215,6 +228,16 @@ export default class LudoServer implements Party.Server {
         totalPlayers?: number,
         botCount?: number
     ) {
+        // Maintenance Mode: Block new joins, allow reconnects
+        if (this.maintenanceMode) {
+            // Check if it's a reconnect
+            const isReconnect = playerId && this.gameState.players.some(p => p.id === playerId);
+            if (!isReconnect) {
+                send(conn, createJoinRejectedMessage('Server is in maintenance mode. No new games allowed.') as ServerMessage);
+                return;
+            }
+        }
+
         const result = handlePlayerJoin(
             this.gameState,
             conn.id,
@@ -227,6 +250,15 @@ export default class LudoServer implements Party.Server {
 
         if (!result.success) {
             send(conn, createJoinRejectedMessage(result.error || 'Join failed') as ServerMessage);
+            return;
+        }
+
+        if (result.isSpectator) {
+            Logger.info({ event: 'SPECTATOR_JOINED', connectionId: conn.id, roomCode: this.roomCode });
+            // Send success message locally
+            send(conn, createJoinSuccessMessage(result.player!, this.roomCode, false) as ServerMessage);
+            // Ensure they have the latest state
+            send(conn, createStateSyncMessage(this.gameState) as ServerMessage);
             return;
         }
 
@@ -247,7 +279,7 @@ export default class LudoServer implements Party.Server {
         }
 
         if (create && botCount && botCount > 0) {
-            console.log(`Creating ${botCount} bots for room ${this.roomCode}`);
+            Logger.info({ event: 'CREATING_BOTS', count: botCount, roomCode: this.roomCode });
             this.gameState = addMultipleBots(this.gameState, botCount);
         }
 
@@ -302,7 +334,11 @@ export default class LudoServer implements Party.Server {
             return;
         }
 
-        this.skippedTurns.set(conn.id, 0);
+        // Reset skipped turns for this player (use stable ID)
+        const player = this.gameState.players.find(p => p.connectionId === conn.id);
+        if (player) {
+            this.skippedTurns.set(player.id, 0);
+        }
         this.cancelTurnTimer();
 
         this.gameState = result.newState;
@@ -388,7 +424,7 @@ export default class LudoServer implements Party.Server {
             return;
         }
 
-        this.skippedTurns.set(conn.id, 0);
+        this.skippedTurns.set(player.id, 0);
         this.cancelTurnTimer();
 
         this.cancelTurnTimer();
@@ -430,7 +466,7 @@ export default class LudoServer implements Party.Server {
             .map(p => p.color);
 
         if (activePlayers.length === 0) {
-            console.error("No active unranked players found in skipTurn!");
+            Logger.error("No active unranked players found in skipTurn!");
             return;
         }
 
@@ -496,18 +532,18 @@ export default class LudoServer implements Party.Server {
         const isEmptyRoomAlarm = await this.room.storage.get<boolean>("emptyRoomAlarm");
         if (isEmptyRoomAlarm) {
             if (this.room.connections.size === 0) {
-                console.log(`[Room ${this.roomCode}] Empty-room TTL expired — deleting storage.`);
+                Logger.info({ event: 'ROOM_GC', roomCode: this.roomCode, action: 'DELETE_STORAGE' });
                 await deleteRoom(this.roomCode, this.room);
             } else {
                 // A player joined before the alarm fired; cancel the sentinel.
                 await this.room.storage.delete("emptyRoomAlarm");
-                console.log(`[Room ${this.roomCode}] Empty-room alarm cancelled — room has players.`);
+                Logger.info({ event: 'ROOM_GC_CANCELLED', roomCode: this.roomCode, reason: 'PLAYERS_PRESENT' });
             }
             return;
         }
 
         if (this.isProcessingTurn) {
-            console.warn("Alarm fired while turn is being processed. Ignoring to prevent race.");
+            Logger.warn("Alarm fired while turn is being processed. Ignoring to prevent race.");
             return;
         }
 
@@ -528,7 +564,11 @@ export default class LudoServer implements Party.Server {
             const currentSkips = (this.skippedTurns.get(currentPlayer.id) || 0) + 1;
             this.skippedTurns.set(currentPlayer.id, currentSkips);
 
-            console.log(`Player ${currentPlayer.name} timed out. Skips: ${currentSkips}`);
+            Logger.info({
+                event: 'PLAYER_TIMEOUT',
+                player: currentPlayer.name,
+                skips: currentSkips
+            });
 
             if (currentSkips >= 3) {
                 const playerToKick = currentPlayer;
@@ -553,7 +593,7 @@ export default class LudoServer implements Party.Server {
                 this.skipTurn();
             }
         } catch (error) {
-            console.error("Error in onAlarm:", error);
+            Logger.error({ event: 'ALARM_ERROR', error });
         } finally {
             this.isProcessingTurn = false;
         }
@@ -595,7 +635,7 @@ export default class LudoServer implements Party.Server {
 
                     this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
                 } else {
-                    console.error("Bot failed to roll:", rollResult.error);
+                    Logger.error({ event: 'BOT_ROLL_FAILED', error: rollResult.error });
                     this.skipTurn();
                 }
             } else if (action.type === 'MOVE') {
@@ -626,7 +666,7 @@ export default class LudoServer implements Party.Server {
                         }
                     }
                 } else {
-                    console.error("Bot failed valid move");
+                    Logger.error("Bot failed valid move");
                     this.skipTurn();
                 }
             } else {
@@ -635,7 +675,7 @@ export default class LudoServer implements Party.Server {
 
             this.broadcastState();
         } catch (error) {
-            console.error("Bot crashed, skipping turn:", error);
+            Logger.error({ event: 'BOT_CRASH', error });
             this.skipTurn();
         }
     }

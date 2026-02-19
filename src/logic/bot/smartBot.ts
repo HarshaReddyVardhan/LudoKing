@@ -15,17 +15,48 @@ interface BotWeights {
     progressMultiplier: number;
 }
 
-const DEFAULT_WEIGHTS: BotWeights = {
-    capture: 200,
-    reachGoal: 300,
-    enterHomeStretch: 100,
-    safeSquare: 40,
-    leaveBase: 150,
-    riskPenalty: 50,
-    progressMultiplier: 1
+
+export type BotStyle = 'AGGRESSIVE' | 'SAFE' | 'RANDOM';
+
+const WEIGHTS_MAP: Record<BotStyle, BotWeights> = {
+    AGGRESSIVE: {
+        capture: 400,
+        reachGoal: 200,
+        enterHomeStretch: 50,
+        safeSquare: 10,
+        leaveBase: 200,
+        riskPenalty: 10,
+        progressMultiplier: 2
+    },
+    SAFE: {
+        capture: 50,
+        reachGoal: 400,
+        enterHomeStretch: 150,
+        safeSquare: 200,
+        leaveBase: 100,
+        riskPenalty: 300,
+        progressMultiplier: 0.5
+    },
+    RANDOM: {
+        // Balanced/Chaos - lower focus on safety
+        capture: 150,
+        reachGoal: 150,
+        enterHomeStretch: 50,
+        safeSquare: 20,
+        leaveBase: 100,
+        riskPenalty: 0,
+        progressMultiplier: 1
+    }
 };
 
-function scoreMove(move: ValidMove, state: GameState, weights: BotWeights): number {
+function scoreMove(move: ValidMove, state: GameState, baseWeights: BotWeights): number {
+    const weights = { ...baseWeights };
+
+    if (move.from >= BOARD.HOME_STRETCH_START) {
+        weights.riskPenalty = 0;
+        weights.progressMultiplier *= 5;
+    }
+
     let score = 0;
     const { color } = state.pawns.find(p => p.id === move.pawnId)!;
 
@@ -71,6 +102,12 @@ function scoreMove(move: ValidMove, state: GameState, weights: BotWeights): numb
 }
 
 export class SmartBot implements BotStrategy {
+    private weights: BotWeights;
+
+    constructor(style: BotStyle = 'SAFE') {
+        this.weights = WEIGHTS_MAP[style];
+    }
+
     computeNextMove(state: GameState, playerColor: string): BotAction {
         if (state.gamePhase === 'ROLLING') {
             const diceValue = rollDice();
@@ -86,12 +123,13 @@ export class SmartBot implements BotStrategy {
 
             const scoredMoves = validMoves.map((move: ValidMove) => ({
                 move,
-                score: scoreMove(move, state, DEFAULT_WEIGHTS)
+                score: scoreMove(move, state, this.weights)
             }));
 
-            scoredMoves.sort((a: { move: ValidMove; score: number }, b: { move: ValidMove; score: number }) => b.score - a.score);
-            const bestMove = scoredMoves[0].move;
+            // Sort by score descending
+            scoredMoves.sort((a, b) => b.score - a.score);
 
+            const bestMove = scoredMoves[0].move;
             return { type: 'MOVE', pawnId: bestMove.pawnId };
         }
 

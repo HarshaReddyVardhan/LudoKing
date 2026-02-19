@@ -36,7 +36,9 @@ export function normalizeRoomCode(code: string): string {
     return code.trim().toUpperCase();
 }
 
-export const MAX_PLAYERS_PER_ROOM = 4;
+import { CONFIG } from "../config";
+
+export const MAX_PLAYERS_PER_ROOM = CONFIG.MAX_PLAYERS;
 
 // =====================
 // PLAYER MANAGEMENT
@@ -51,6 +53,7 @@ export interface JoinResult {
     player?: Player;
     reconnected?: boolean;
     updatedState?: GameState;
+    isSpectator?: boolean;
 }
 
 /**
@@ -116,7 +119,8 @@ export function validateJoinRequest(
     // Reconnections are handled upstream (via handlePlayerReconnection) before
     // this function is ever called, so this only blocks truly new joiners.
     if (gameState.gamePhase !== 'WAITING') {
-        return { valid: false, error: 'Game already in progress — new players cannot join' };
+        // If game in progress, allow as spectator
+        return { valid: true, spectator: true };
     }
 
     // Check if room is full — allow join as spectator (isActive=false) instead of hard reject
@@ -133,7 +137,13 @@ export function validateJoinRequest(
     }
 
     // Check for duplicate name - prevent same player joining twice under a different connection
-    if (name) {
+    if (name !== undefined) {
+        // Enforce name rules: Alphanumeric + spaces only, max 12 chars
+        const nameRegex = /^[a-zA-Z0-9 ]{1,12}$/;
+        if (!nameRegex.test(name.trim())) {
+            return { valid: false, error: 'Name must be 1-12 alphanumeric characters' };
+        }
+
         const alreadyJoinedByName = gameState.players.find(
             p => p.name.trim().toLowerCase() === name.trim().toLowerCase()
         );
@@ -236,6 +246,27 @@ export function handlePlayerJoin(
     const validation = validateJoinRequest(gameState, create, connectionId, name);
     if (!validation.valid) {
         return { success: false, error: validation.error };
+    }
+
+    // 2.5 Handle Spectator Logic (Room Full or Game in Progress)
+    if (validation.spectator) {
+        // Create a transient spectator player object
+        const spectatorPlayer: Player = {
+            id: `spec-${connectionId}`,
+            connectionId: connectionId,
+            name: `${name} (Spectator)`,
+            color: Color.RED, // Dummy color, won't be used since not in state logic checks ideally
+            isBot: false,
+            isActive: false,
+            rank: undefined
+        };
+
+        return {
+            success: true,
+            player: spectatorPlayer,
+            isSpectator: true,
+            updatedState: undefined // Do NOT update state
+        };
     }
 
     // 3. Check if already joined by connectionId (return success without re-adding)
