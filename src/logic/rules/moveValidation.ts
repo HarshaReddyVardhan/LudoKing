@@ -117,6 +117,9 @@ function shouldCapture(targetPos: number, allPawns: Pawn[], color: PlayerColor):
         if (p.position === BOARD.HOME || p.position === BOARD.GOAL || p.position >= BOARD.HOME_STRETCH_START) return false;
 
         const pGlobal = toGlobalPosition(p.position, p.color);
+        // Fix: Ignore if global position is -1 (home stretch)
+        if (pGlobal === -1) return false;
+
         return pGlobal === targetGlobalPos;
     });
 

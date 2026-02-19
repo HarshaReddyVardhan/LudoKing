@@ -82,14 +82,23 @@ export function sendJoinRequest(name: string, create: boolean, playerId?: string
         payload.botCount = botCount || 0;
     }
 
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(payload));
-    } else if (socket) {
-        // Retry once briefly if just connecting
-        setTimeout(() => {
-            socket?.send(JSON.stringify(payload));
-        }, 500);
-    }
+    // Validate payload with Zod
+    import('../../src/shared/types').then(({ JoinRequestSchema }) => {
+        const result = JoinRequestSchema.safeParse(payload);
+        if (!result.success) {
+            console.error("Invalid JOIN_REQUEST payload:", result.error);
+            return;
+        }
+
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(payload));
+        } else if (socket) {
+            // Retry once briefly if just connecting
+            setTimeout(() => {
+                socket?.send(JSON.stringify(payload));
+            }, 500);
+        }
+    });
 }
 
 export function sendRollRequest() {

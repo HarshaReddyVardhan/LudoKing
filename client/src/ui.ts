@@ -129,8 +129,16 @@ export function renderState(gameState: GameState | null, myColor: string | null,
     // Ensure validPawnIds is always an array
     const safeValidPawnIds = Array.isArray(validPawnIds) ? validPawnIds : [];
 
-    // Clear existing pawns
-    document.querySelectorAll('.pawn').forEach(el => el.remove());
+    // Track currently rendered pawns to avoid full re-render
+    const existingPawnEls = new Map<string, HTMLElement>();
+    document.querySelectorAll('.pawn[data-pawn-id]').forEach(el => {
+        if (el instanceof HTMLElement && el.dataset.pawnId) {
+            existingPawnEls.set(el.dataset.pawnId, el);
+        }
+    });
+
+    // Set of IDs that were processed in this update
+    const processedPawnIds = new Set<string>();
 
     // Render Pawns
     const pawnsAtCell = new Map<string, Pawn[]>();
@@ -162,35 +170,67 @@ export function renderState(gameState: GameState | null, myColor: string | null,
                 return; // Skip invalid pawns
             }
 
-            // Wrapper for positioning
-            const wrapper = document.createElement('div');
-            wrapper.className = 'pawn-wrapper';
+            processedPawnIds.add(pawn.id);
 
-            // Handle overlaps with small offsets on the wrapper
+            let el = existingPawnEls.get(pawn.id);
+            let wrapper: HTMLElement;
+
+            if (el) {
+                // Reuse existing element
+                wrapper = el.parentElement as HTMLElement;
+                // Update classes - reset base class then add specific ones
+                el.className = `pawn ${pawn.color.toLowerCase()}`;
+            } else {
+                // Create new
+                wrapper = document.createElement('div');
+                wrapper.className = 'pawn-wrapper';
+
+                el = document.createElement('div');
+                el.className = `pawn ${pawn.color.toLowerCase()}`;
+
+                wrapper.appendChild(el);
+            }
+
+            // Always ensure it's in the correct cell (moves it if needed)
+            if (wrapper.parentElement !== cell) {
+                cell.appendChild(wrapper);
+            }
+
+            // Handle overlaps with updated offsets
             if (pawns.length > 1) {
                 const offset = (idx * 5) - ((pawns.length - 1) * 2.5);
                 wrapper.style.transform = `translate(${offset}px, ${offset}px)`;
+            } else {
+                wrapper.style.transform = '';
             }
-
-            const el = document.createElement('div');
-            el.className = `pawn ${pawn.color.toLowerCase()}`;
 
             // Add fading for opponent pawns
             if (myColor && pawn.color !== myColor) {
                 el.style.opacity = '0.4';
+            } else {
+                el.style.opacity = '1';
             }
 
             // Check if movable
             if (gameState?.currentTurn === myColor &&
                 gameState.gamePhase === 'MOVING' &&
                 safeValidPawnIds.includes(pawn.id)) {
-                el.className += ' clickable';
+                el.classList.add('clickable');
+                el.dataset.pawnId = pawn.id;
+            } else {
+                el.classList.remove('clickable');
+                // Ensure data-pawn-id is always present for identification
                 el.dataset.pawnId = pawn.id;
             }
-
-            wrapper.appendChild(el);
-            cell.appendChild(wrapper);
         });
+    });
+
+    // Remove pawns that are no longer in the game state
+    existingPawnEls.forEach((el, id) => {
+        if (!processedPawnIds.has(id)) {
+            // Remove the wrapper
+            el.parentElement?.remove();
+        }
     });
 
     // Render User List (Sidebar Rows)

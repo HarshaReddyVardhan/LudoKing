@@ -53,6 +53,7 @@ export default class LudoServer implements Party.Server {
     maintenanceMode: boolean = false;
 
     constructor(readonly room: Party.Room) {
+        // Use normalized room ID as the code
         this.roomCode = this.room.id;
         this.gameState = createInitialState(this.roomCode);
     }
@@ -583,24 +584,40 @@ export default class LudoServer implements Party.Server {
             });
 
             if (currentSkips >= 3) {
-                const playerToKick = currentPlayer;
+                // AFK TAKEOVER: Do NOT kick, switch to bot
+                Logger.info({
+                    event: 'BOT_TAKEOVER',
+                    player: currentPlayer.name
+                });
 
-                this.skipTurn();
+                // Update player text
+                const wasName = currentPlayer.name;
 
-                this.gameState.players = this.gameState.players.filter(
-                    p => p.id !== playerToKick.id
-                );
-                this.gameState.pawns = this.gameState.pawns.filter(
-                    p => p.color !== playerToKick.color
-                );
+                this.gameState = {
+                    ...this.gameState,
+                    players: this.gameState.players.map(p => {
+                        if (p.id === currentPlayer.id) {
+                            return {
+                                ...p,
+                                isBot: true,
+                                isActive: true, // Keep active so bot plays
+                                name: `${wasName} (Auto)`
+                            };
+                        }
+                        return p;
+                    })
+                };
 
                 broadcast(this.room, {
-                    type: 'PLAYER_KICKED',
-                    playerId: playerToKick.id,
-                    reason: 'AFK_TIMEOUT',
+                    type: 'BOT_TAKEOVER',
+                    playerId: currentPlayer.id,
+                    color: currentPlayer.color
                 });
 
                 this.broadcastState();
+
+                // Immediately trigger update so bot plays this turn if it's still their turn
+                this.update();
             } else {
                 this.skipTurn();
             }
