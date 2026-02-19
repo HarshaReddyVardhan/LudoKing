@@ -102,6 +102,11 @@ export const AnimationAckSchema = z.object({
 });
 export type AnimationAck = z.infer<typeof AnimationAckSchema>;
 
+export const ResetGameSchema = z.object({
+    type: z.literal('RESET_GAME')
+});
+export type ResetGame = z.infer<typeof ResetGameSchema>;
+
 // Server -> Client Messages
 
 export interface RoomInfoMsg {
@@ -193,6 +198,10 @@ export interface BotTakeoverMsg {
     color: Color;
 }
 
+export interface GameResetMsg {
+    type: 'GAME_RESET';
+}
+
 export interface ErrorPayload {
     type: 'ERROR';
     code: string;
@@ -214,6 +223,7 @@ export type ServerMessage =
     | PlayerKickedMsg
     | TurnTimerStartMsg
     | BotTakeoverMsg
+    | GameResetMsg
     | ErrorPayload;
 
 // Client -> Server Messages
@@ -224,6 +234,7 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
     AddBotRequestSchema,
     StartGameRequestSchema,
     AnimationAckSchema,
+    ResetGameSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;

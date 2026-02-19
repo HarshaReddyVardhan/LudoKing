@@ -1,6 +1,6 @@
 import type * as Party from "partykit/server";
 import { GameState, ServerMessage, ClientMessageSchema, GamePhase, Color } from "./shared/types";
-import { createInitialState } from "./logic/gameState";
+import { createInitialState, resetGame } from "./logic/gameState";
 import { handleRollRequest } from "./logic/diceEngine";
 import { getValidMoves, getValidPawnIds, executeMove } from "./logic/moveValidation";
 import {
@@ -68,9 +68,13 @@ export default class LudoServer implements Party.Server {
     async onClose(conn: Party.Connection) {
         console.log(`Connection closed: ${conn.id} in room ${this.roomCode}`);
 
-        // If the room is empty, clean up
+        // If no connections remain, set a 10-minute alarm to GC abandoned rooms.
+        // A new player joining before the alarm fires will cancel it.
         if (this.room.connections.size === 0) {
-            await deleteRoom(this.roomCode, this.room);
+            const EMPTY_ROOM_TTL_MS = 10 * 60 * 1000; // 10 minutes
+            await this.room.storage.put("emptyRoomAlarm", true);
+            await this.room.storage.setAlarm(Date.now() + EMPTY_ROOM_TTL_MS);
+            console.log(`[Room ${this.roomCode}] No connections — scheduled deletion in 10 min.`);
             return;
         }
 
@@ -135,7 +139,7 @@ export default class LudoServer implements Party.Server {
         try {
             switch (parsed.type) {
                 case 'JOIN_REQUEST':
-                    this.handleJoin(
+                    await this.handleJoin(
                         sender,
                         parsed.name,
                         parsed.create,
@@ -187,6 +191,9 @@ export default class LudoServer implements Party.Server {
                 case 'ADD_BOT':
                     this.handleAddBot(sender);
                     break;
+                case 'RESET_GAME':
+                    this.handleResetGame(sender);
+                    break;
                 default:
                     send(sender, { type: 'ERROR', code: 'UNKNOWN_TYPE', message: 'Unknown message type' });
             }
@@ -200,7 +207,7 @@ export default class LudoServer implements Party.Server {
         }
     }
 
-    private handleJoin(
+    private async handleJoin(
         conn: Party.Connection,
         name: string,
         create: boolean = false,
@@ -227,6 +234,9 @@ export default class LudoServer implements Party.Server {
             this.gameState = result.updatedState;
         }
 
+        // Cancel any pending empty-room GC alarm now that a player has joined
+        await this.room.storage.delete("emptyRoomAlarm");
+
         send(conn, createJoinSuccessMessage(result.player!, this.roomCode, result.reconnected) as ServerMessage);
 
         if (!result.reconnected) {
@@ -251,6 +261,24 @@ export default class LudoServer implements Party.Server {
             this.gameState = result.updatedState;
             this.broadcastState();
         }
+    }
+
+    private handleResetGame(conn: Party.Connection) {
+        // Only host (first active player) can reset
+        const host = this.gameState.players.find(p => p.isActive);
+        if (!host || host.connectionId !== conn.id) {
+            send(conn, { type: 'ERROR', code: 'NOT_HOST', message: 'Only the host can reset the game' });
+            return;
+        }
+        if (this.gameState.gamePhase !== GamePhase.FINISHED) {
+            send(conn, { type: 'ERROR', code: 'NOT_FINISHED', message: 'Game has not finished yet' });
+            return;
+        }
+        this.cancelTurnTimer();
+        this.gameState = resetGame(this.gameState);
+        this.room.storage.put("gameState", this.gameState);
+        broadcast(this.room, { type: 'GAME_RESET' });
+        this.broadcastState();
     }
 
     private handleRoll(conn: Party.Connection) {
@@ -463,6 +491,21 @@ export default class LudoServer implements Party.Server {
     }
 
     async onAlarm() {
+        // Empty-room GC: if the alarm was set because the room had zero connections,
+        // and it's still empty now, delete all storage to prevent memory leaks.
+        const isEmptyRoomAlarm = await this.room.storage.get<boolean>("emptyRoomAlarm");
+        if (isEmptyRoomAlarm) {
+            if (this.room.connections.size === 0) {
+                console.log(`[Room ${this.roomCode}] Empty-room TTL expired — deleting storage.`);
+                await deleteRoom(this.roomCode, this.room);
+            } else {
+                // A player joined before the alarm fired; cancel the sentinel.
+                await this.room.storage.delete("emptyRoomAlarm");
+                console.log(`[Room ${this.roomCode}] Empty-room alarm cancelled — room has players.`);
+            }
+            return;
+        }
+
         if (this.isProcessingTurn) {
             console.warn("Alarm fired while turn is being processed. Ignoring to prevent race.");
             return;

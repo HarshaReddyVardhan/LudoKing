@@ -88,3 +88,24 @@ export function checkWinCondition(state: GameState): GameState {
     return state;
 }
 
+/**
+ * Resets the game back to the WAITING phase while preserving the player list.
+ * Pawns are moved back to HOME, ranks cleared, dice cleared.
+ * Only the host should be allowed to call this (enforced in server.ts).
+ */
+export function resetGame(state: GameState): GameState {
+    const resetPlayers = state.players.map(p => ({ ...p, rank: undefined, isActive: true }));
+    const resetPawns = resetPlayers.flatMap(p => initializePawns(p.color));
+    return {
+        ...state,
+        players: resetPlayers,
+        pawns: resetPawns,
+        currentTurn: Color.RED,
+        currentDiceValue: null,
+        consecutiveSixes: 0,
+        gamePhase: GamePhase.WAITING,
+        winner: undefined,
+        lastMove: null,
+        lastUpdate: Date.now(),
+    };
+}

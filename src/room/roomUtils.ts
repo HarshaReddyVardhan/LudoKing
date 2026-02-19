@@ -104,7 +104,7 @@ export function validateJoinRequest(
     create: boolean,
     connectionId: string,
     name?: string
-): { valid: boolean; error?: string } {
+): { valid: boolean; error?: string; spectator?: boolean } {
     const playerCount = gameState.players.length;
 
     // Check if trying to join empty room without create flag
@@ -119,9 +119,10 @@ export function validateJoinRequest(
         return { valid: false, error: 'Game already in progress — new players cannot join' };
     }
 
-    // Check if room is full
+    // Check if room is full — allow join as spectator (isActive=false) instead of hard reject
     if (playerCount >= gameState.maxPlayers) {
-        return { valid: false, error: `Room is full (max ${gameState.maxPlayers} players)` };
+        // Spectator allowed: return valid but caller must set isActive=false
+        return { valid: true, spectator: true };
     }
 
     // Check for duplicate connectionId (already joined via same socket)
@@ -145,24 +146,51 @@ export function validateJoinRequest(
 }
 
 /**
+ * Strips HTML tags and encodes special characters to prevent XSS.
+ */
+function sanitizeName(raw: string): string {
+    return raw
+        .replace(/<[^>]*>/g, '')          // strip HTML tags
+        .replace(/[&<>"'`]/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;',
+            '"': '&quot;', "'": '&#39;', '`': '&#96;'
+        })[c] ?? c)
+        .trim()
+        .slice(0, 32); // max 32 chars
+}
+
+/**
  * Adds a new player to the game state
  */
 export function addPlayerToGame(
     gameState: GameState,
     connectionId: string,
     name: string,
-    stableId?: string
+    stableId?: string,
+    spectator?: boolean
 ): JoinResult {
-    // Get available color
+    const safeName = sanitizeName(name);
+
+    // Get available color (spectators share the next available slot or get none)
     const availableColor = getAvailableColor(gameState);
 
-    if (!availableColor) {
+    if (!availableColor && !spectator) {
         return { success: false, error: 'No colors available' };
     }
 
+    if (!availableColor) {
+        // Spectator with no free color slot: still allow but no pawn color
+        // We still need a color placeholder — use first color (they won't get pawns)
+        // For now, reject spectators when no color is available (edge case)
+        return { success: false, error: 'No color slot for spectator' };
+    }
+
     // Create player and pawns
-    const player = createPlayer(connectionId, name, availableColor, stableId);
-    const pawns = initializePawns(availableColor);
+    const player = createPlayer(connectionId, safeName, availableColor, stableId);
+    if (spectator) {
+        player.isActive = false;
+    }
+    const pawns = spectator ? [] : initializePawns(availableColor);
 
     // Update game state
     const updatedState: GameState = {
