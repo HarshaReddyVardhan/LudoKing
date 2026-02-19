@@ -51,6 +51,13 @@ export default class LudoServer implements Party.Server {
         this.gameState = createInitialState(this.roomCode);
     }
 
+    async onStart() {
+        const state = await this.room.storage.get<GameState>("gameState");
+        if (state) {
+            this.gameState = state;
+        }
+    }
+
     onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
         console.log(`Connection established: ${conn.id} in room ${this.roomCode}`);
         send(conn, createRoomInfoMessage(this.roomCode, this.gameState) as ServerMessage);
@@ -233,6 +240,7 @@ export default class LudoServer implements Party.Server {
             this.gameState = addMultipleBots(this.gameState, botCount);
         }
 
+        this.room.storage.put("gameState", this.gameState);
         this.broadcastState();
     }
 
@@ -277,6 +285,7 @@ export default class LudoServer implements Party.Server {
             ...this.gameState,
             gamePhase: 'ROLLING_ANIMATION',
         };
+        this.room.storage.put("gameState", this.gameState);
 
         broadcast(this.room, {
             type: 'DICE_RESULT',
@@ -365,6 +374,7 @@ export default class LudoServer implements Party.Server {
         }
 
         this.gameState = result.newState;
+        this.room.storage.put("gameState", this.gameState);
 
         broadcast(this.room, {
             type: 'MOVE_EXECUTED',
@@ -583,6 +593,7 @@ export default class LudoServer implements Party.Server {
     }
 
     private broadcastState() {
+        this.room.storage.put("gameState", this.gameState);
         broadcast(this.room, {
             type: 'SYNC_STATE',
             state: this.gameState,
