@@ -6,7 +6,9 @@ let socket: WebSocket | null = null;
 let currentRoom: string | null = null;
 let currentMessageHandler: MessageHandler | null = null;
 let reconnectAttempts = 0;
-const MAX_RECONNECT_DELAY = 10000;
+const MAX_RECONNECT_DELAY = 30000; // Cap at 30s
+const BASE_RECONNECT_DELAY = 1000;
+const MAX_RETRIES = 50; // Give up eventually
 
 type MessageHandler = (data: ServerMessage) => void;
 
@@ -48,8 +50,17 @@ export function connect(joinedRoom: string, onMessage: MessageHandler) {
 }
 
 function scheduleReconnect() {
-    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
-    console.log(`Reconnecting in ${delay}ms...`);
+    if (reconnectAttempts >= MAX_RETRIES) {
+        console.error("Max reconnect attempts reached. Giving up.");
+        return;
+    }
+
+    // Exponential backoff with jitter
+    const backoff = Math.min(BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
+    const jitter = Math.random() * 1000;
+    const delay = backoff + jitter;
+
+    console.log(`Reconnecting in ${Math.floor(delay)}ms... (Attempt ${reconnectAttempts + 1}/${MAX_RETRIES})`);
 
     setTimeout(() => {
         reconnectAttempts++;

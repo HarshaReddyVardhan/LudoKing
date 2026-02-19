@@ -1,4 +1,5 @@
 import { getGridCoord, getBoardZone, isSafeGridCoord } from '@shared/boardMap';
+import { BOARD_DIMENSION } from '@shared/constants';
 import type { GameState, Pawn } from '../../src/shared/types';
 import { sendMoveRequest } from './socket';
 
@@ -57,9 +58,9 @@ export let botCount = 0;
 // Initialize Board Grid
 export function initBoard() {
     board.innerHTML = '';
-    // Create 15x15 grid cells
-    for (let r = 1; r <= 15; r++) {
-        for (let c = 1; c <= 15; c++) {
+    // Create grid cells dynamically
+    for (let r = 1; r <= BOARD_DIMENSION; r++) {
+        for (let c = 1; c <= BOARD_DIMENSION; c++) {
             const cell = document.createElement('div');
             cell.className = 'cell';
             cell.dataset.r = r.toString();
@@ -151,8 +152,8 @@ export function renderState(gameState: GameState | null, myColor: string | null,
     pawnsAtCell.forEach((pawns, key) => {
         const [r, c] = key.split(',').map(Number);
         // Find the cell
-        // Grid child index = (r-1)*15 + (c-1)
-        const index = (r - 1) * 15 + (c - 1);
+        // Grid child index = (r-1)*BOARD_DIMENSION + (c-1)
+        const index = (r - 1) * BOARD_DIMENSION + (c - 1);
         const cell = board.children[index] as HTMLElement;
 
         pawns.forEach((pawn, idx) => {
