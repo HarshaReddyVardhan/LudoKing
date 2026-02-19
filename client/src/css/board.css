@@ -8,24 +8,31 @@
     overflow: visible;
     padding: 10px;
     min-height: 0;
+    perspective: 1000px;
+    /* Enable 3D perspective */
 }
 
 #ludo-board {
     aspect-ratio: 1/1;
-    background: var(--board-bg);
-    border: 8px solid var(--board-border);
+    background: rgba(0, 0, 0, 0.85);
+    /* Dark Glass */
+    border: 2px solid var(--board-border);
+    box-shadow: 0 0 50px rgba(0, 255, 251, 0.2), inset 0 0 100px rgba(0, 0, 0, 0.8);
     border-radius: var(--border-radius-lg);
     display: grid;
     grid-template-columns: repeat(15, 1fr);
     grid-template-rows: repeat(15, 1fr);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     /* Responsive Size Logic */
     height: min(90vh, 90vw);
     width: min(90vh, 90vw);
+    backdrop-filter: blur(10px);
+    transform: rotateX(20deg) scale(0.9);
+    /* Tilt slightly for 3D effect */
+    transition: transform 0.5s ease;
 }
 
 .cell {
-    border: 0.5px solid var(--cell-border);
+    border: 0.5px solid rgba(255, 255, 255, 0.03);
     position: relative;
     display: flex;
     justify-content: center;
@@ -40,101 +47,141 @@
     padding: 2px;
 }
 
-.cell-multiple .pawn {
+.cell-multiple .pawn-wrapper {
     transform: scale(0.7);
-    transform-origin: center;
 }
 
-/* Special Zones */
+/* Special Zones - Neon Glow */
 .base-area {
-    border: 2px solid #000;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
 .base-red-bg {
-    background: linear-gradient(135deg, rgba(220, 38, 38, 0.3), rgba(220, 38, 38, 0.15));
+    background: rgba(255, 56, 56, 0.1);
+    box-shadow: inset 0 0 30px var(--neon-red);
 }
 
 .base-blue-bg {
-    background: linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(37, 99, 235, 0.15));
+    background: rgba(41, 128, 185, 0.1);
+    box-shadow: inset 0 0 30px var(--neon-blue);
 }
 
 .base-green-bg {
-    background: linear-gradient(135deg, rgba(22, 163, 74, 0.3), rgba(22, 163, 74, 0.15));
+    background: rgba(57, 255, 20, 0.1);
+    box-shadow: inset 0 0 30px var(--neon-green);
 }
 
 .base-yellow-bg {
-    background: linear-gradient(135deg, rgba(202, 138, 4, 0.3), rgba(202, 138, 4, 0.15));
+    background: rgba(255, 242, 0, 0.1);
+    box-shadow: inset 0 0 30px var(--neon-yellow);
 }
 
 .safe-square {
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23888"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>');
-    background-size: 60%;
-    background-repeat: no-repeat;
-    background-position: center;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+    animation: safePulse 2s infinite ease-in-out;
+    border-radius: 50%;
+    margin: 2px;
+    /* Make it circular within grid */
 }
 
-/* Pawns */
-/* Pawns as CONES */
+@keyframes safePulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+        transform: scale(0.95);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(255, 255, 255, 0.6);
+        transform: scale(1.0);
+    }
+}
+
+/* 3D Pawns */
+.pawn-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    z-index: 20;
+}
+
 .pawn {
-    width: 0;
-    height: 0;
-    border-left: var(--pawn-half-width) solid transparent;
-    border-right: var(--pawn-half-width) solid transparent;
-    border-bottom: var(--pawn-height) solid var(--pawn-color);
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-    z-index: 10;
-    transition: all 0.3s ease;
+    width: var(--pawn-size);
+    height: var(--pawn-size);
+    border-radius: 50%;
     position: absolute;
-    /* Proper centering for cone origin */
-    transform-origin: bottom center;
-    margin-left: calc(var(--pawn-half-width) * -1);
-    /* Half of width */
-    margin-top: -20px;
-    filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5));
+    bottom: 5px;
+    /* sit on board */
+    background: radial-gradient(circle at 30% 30%, #fff, var(--pawn-color));
+    box-shadow:
+        0 10px 10px rgba(0, 0, 0, 0.5),
+        /* Shadow on board */
+        inset -5px -5px 10px rgba(0, 0, 0, 0.5),
+        /* 3D shading */
+        0 0 20px var(--pawn-color);
+    /* Neon Glow */
+
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 100;
 }
 
 .pawn::after {
+    /* Reflection/Highlight */
     content: '';
     position: absolute;
-    top: var(--pawn-height);
-    /* at bottom */
-    left: calc(var(--pawn-half-width) * -1);
-    width: var(--pawn-base-width);
+    top: 5px;
+    left: 5px;
+    width: 10px;
     height: 10px;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(255, 255, 255, 0.8);
     border-radius: 50%;
-    z-index: -1;
+    filter: blur(2px);
+}
+
+/* Streak / Trail Effect Element (inserted via JS maybe, or pseudo) */
+.pawn.moving::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 4px;
+    height: 100px;
+    background: linear-gradient(to top, var(--pawn-color), transparent);
+    transform: translateX(-50%) rotate(180deg);
+    opacity: 0.6;
+    filter: blur(4px);
+    pointer-events: none;
 }
 
 .pawn.red {
-    --pawn-color: var(--red);
-    filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(220, 38, 38, 0.6));
+    --pawn-color: var(--neon-red);
 }
 
 .pawn.blue {
-    --pawn-color: var(--blue);
-    filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(37, 99, 235, 0.6));
+    --pawn-color: var(--neon-blue);
 }
 
 .pawn.green {
-    --pawn-color: var(--green);
-    filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(22, 163, 74, 0.6));
+    --pawn-color: var(--neon-green);
 }
 
 .pawn.yellow {
-    --pawn-color: var(--yellow);
-    filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(202, 138, 4, 0.6));
+    --pawn-color: var(--neon-yellow);
 }
 
 .pawn.clickable {
     cursor: pointer;
-    animation: bounce 1s infinite;
-    filter: drop-shadow(0 0 5px white);
+    animation: pawnBounce 1s infinite;
+    border: 2px solid #fff;
 }
 
-@keyframes bounce {
+@keyframes pawnBounce {
 
     0%,
     100% {
@@ -142,6 +189,6 @@
     }
 
     50% {
-        transform: translateY(-10px);
+        transform: translateY(-15px) scale(1.1);
     }
 }

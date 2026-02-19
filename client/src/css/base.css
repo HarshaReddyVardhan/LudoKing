@@ -4,18 +4,19 @@
     user-select: none;
 }
 
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
+
 body {
     margin: 0;
-    background: var(--bg-dark);
+    background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
     color: var(--text-light);
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    overflow: auto;
+    font-family: 'Outfit', system-ui, sans-serif;
+    overflow: hidden;
     min-height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
     overscroll-behavior: none;
-    /* Prevent pull-to-refresh on mobile */
 }
 
 #app {

@@ -1,40 +1,36 @@
 :root {
-    /* Colors */
-    --red: #b91c1c;
-    --blue: #1e3a8a;
-    --green: #14532d;
-    --yellow: #a16207;
+    /* Neon Palette */
+    --neon-red: #ff3838;
+    --neon-blue: #2980b9;
+    /* Slightly less harsh blue */
+    --neon-green: #39ff14;
+    --neon-yellow: #fff200;
+    --neon-cyan: #00fffb;
+    --neon-magenta: #ff00ff;
 
-    --board-bg: #fff;
-    --board-border: #333;
-    --cell-border: #ccc;
-    --safe-star: #e2e8f0;
+    /* Base Colors */
+    --bg-dark: #050505;
+    --bg-card: rgba(25, 25, 25, 0.8);
+    --bg-glass: rgba(255, 255, 255, 0.05);
 
-    --bg-dark: #1a1a2e;
-    --bg-card: rgba(255, 255, 255, 0.05);
-    --bg-hover: rgba(255, 255, 255, 0.1);
+    /* Board */
+    --board-bg: rgba(0, 0, 0, 0.8);
+    --board-border: #00fffb;
+    /* Tron Cyan */
+    --cell-border: rgba(255, 255, 255, 0.1);
 
-    --text-light: #eee;
-    --text-secondary: #ccc;
-    --text-muted: #aaa;
-    --text-hint: #888;
-    --text-disabled: #666;
-    --text-dark: #333;
+    /* Shadows & Glows */
+    --glow-red: 0 0 10px var(--neon-red), 0 0 20px var(--neon-red);
+    --glow-blue: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-blue);
+    --glow-green: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green);
+    --glow-yellow: 0 0 10px var(--neon-yellow), 0 0 20px var(--neon-yellow);
+    --glow-cyan: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan);
+
+    /* Text */
+    --text-light: #ffffff;
+    --text-muted: #888;
 
     /* Dimensions */
-    --border-radius-lg: 12px;
-    --border-radius-md: 8px;
-
-    --pawn-base-width: 30px;
-    --pawn-height: 40px;
-    --pawn-half-width: 15px;
-
-    /* Components */
-    --input-bg: #0f3460;
-    --btn-red: #e94560;
-    --btn-secondary: #16213e;
-    
-    /* Layout */
-    --bg-sidebar: rgba(0, 0, 0, 0.4);
-    --border-sidebar: rgba(255, 255, 255, 0.1);
+    --border-radius-lg: 16px;
+    --pawn-size: 30px;
 }
