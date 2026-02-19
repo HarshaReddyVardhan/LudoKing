@@ -351,9 +351,19 @@
                         break;
                     case 'DICE_RESULT':
                         clientState.validPawnIds = data.validPawnIds || [];
-                        clientState.gamePhase = 'MOVING'; // Server moved to MOVING phase after dice
                         $('diceResult').textContent = `Rolled: ${data.diceValue}${data.isBot ? ' (BOT)' : ''}`;
                         $('validPawns').textContent = clientState.validPawnIds.join(', ') || 'None';
+                        // Send ANIMATION_ACK after animation completes (~2s)
+                        // This signals the server to transition from ROLLING_ANIMATION → MOVING
+                        if (!data.isBot) {
+                            setTimeout(() => {
+                                if (ws && ws.readyState === WebSocket.OPEN) {
+                                    const ack = JSON.stringify({ type: 'ANIMATION_ACK' });
+                                    log(`→ ${ack}`, 'send');
+                                    ws.send(ack);
+                                }
+                            }, 2000);
+                        }
                         break;
                     case 'JOIN_SUCCESS':
                         clientState.myColor = data.player.color;

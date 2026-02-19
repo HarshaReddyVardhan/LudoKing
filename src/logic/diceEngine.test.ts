@@ -94,10 +94,14 @@ describe('Dice Engine', () => {
             const firstRoll = handleRollRequest(state, 'player1');
             expect(firstRoll.success).toBe(true);
 
-            // Second roll should fail (state is now MOVING)
+            // Second roll on the resulting state should fail.
+            // It might fail due to MOVING phase OR debounce (both are valid anti-cheat responses).
             const secondRoll = handleRollRequest(firstRoll.newState, 'player1');
             expect(secondRoll.success).toBe(false);
-            expect(secondRoll.error).toContain('Cannot roll in MOVING phase');
+            expect(
+                secondRoll.error?.includes('Cannot roll in MOVING phase') ||
+                secondRoll.error?.includes('Rolling too fast')
+            ).toBe(true);
         });
 
         it('should reject roll from unknown player', () => {
@@ -121,6 +125,118 @@ describe('Dice Engine', () => {
             expect(newState.gamePhase).toBe('ROLLING');
             expect(newState.currentDiceValue).toBeNull();
             expect(newState.currentTurn).toBe('BLUE');
+        });
+    });
+
+    describe('3 Consecutive Sixes Rule', () => {
+        // Helper: creates a 2-player state with all pawns on the board
+        // so that non-weighted dice is used (weighted only kicks in when 3+ pawns are at HOME).
+        function createTestState(): GameState {
+            const state = createInitialState('TEST01');
+            state.players = [
+                createPlayer('player1', 'Alice', 'RED'),
+                createPlayer('player2', 'Bob', 'BLUE'),
+            ];
+            // Move all RED pawns onto the board so weighted-six doesn't trigger.
+            // Non-weighted: floor(r * 6) + 1
+            // 0.99 -> 6,  0.5 -> 4,  0.0 -> 1
+            state.pawns = [
+                { id: 'RED_0', color: 'RED', position: 5, pawnIndex: 0 },
+                { id: 'RED_1', color: 'RED', position: 6, pawnIndex: 1 },
+                { id: 'RED_2', color: 'RED', position: 7, pawnIndex: 2 },
+                { id: 'RED_3', color: 'RED', position: 8, pawnIndex: 3 },
+                { id: 'BLUE_0', color: 'BLUE', position: 0, pawnIndex: 0 },
+                { id: 'BLUE_1', color: 'BLUE', position: 0, pawnIndex: 1 },
+                { id: 'BLUE_2', color: 'BLUE', position: 0, pawnIndex: 2 },
+                { id: 'BLUE_3', color: 'BLUE', position: 0, pawnIndex: 3 },
+            ];
+            state.currentTurn = 'RED';
+            state.gamePhase = 'ROLLING';
+            return state;
+        }
+
+        it('should forfeit turn and pass to next player on 3rd consecutive six', () => {
+            // Non-weighted: 0.99 -> floor(0.99 * 6) + 1 = floor(5.94) + 1 = 5 + 1 = 6
+            const mock = new MockDiceProvider([0.99]);
+            const state = createTestState();
+
+            // Simulate two previous sixes already logged
+            state.consecutiveSixes = 2;
+
+            const result = handleRollRequest(state, 'player1', mock);
+
+            expect(result.success).toBe(true);
+            expect(result.diceValue).toBe(6);
+            // Turn should pass to BLUE (the next active player)
+            expect(result.newState.currentTurn).toBe('BLUE');
+            // Dice value reset (no move allowed)
+            expect(result.newState.currentDiceValue).toBeNull();
+            // Streak reset
+            expect(result.newState.consecutiveSixes).toBe(0);
+            // Phase back to ROLLING for BLUE
+            expect(result.newState.gamePhase).toBe('ROLLING');
+        });
+
+        it('should preserve consecutive six streak after first six', () => {
+            // Non-weighted: 0.99 -> 6
+            const mock = new MockDiceProvider([0.99]);
+            const state = createTestState();
+            state.consecutiveSixes = 0;
+
+            const result = handleRollRequest(state, 'player1', mock);
+
+            expect(result.success).toBe(true);
+            expect(result.diceValue).toBe(6);
+            // Still RED's turn, streak = 1
+            expect(result.newState.currentTurn).toBe('RED');
+            expect(result.newState.consecutiveSixes).toBe(1);
+            expect(result.newState.gamePhase).toBe('MOVING');
+        });
+
+        it('should reset streak on non-six after two sixes', () => {
+            // Non-weighted: 0.5 -> floor(0.5 * 6) + 1 = floor(3) + 1 = 4
+            const mock = new MockDiceProvider([0.5]);
+            const state = createTestState();
+            state.consecutiveSixes = 2;
+
+            const result = handleRollRequest(state, 'player1', mock);
+
+            expect(result.success).toBe(true);
+            expect(result.diceValue).toBe(4);
+            // Turn does NOT change (not a forfeit)
+            expect(result.newState.currentTurn).toBe('RED');
+            expect(result.newState.consecutiveSixes).toBe(0);
+            expect(result.newState.gamePhase).toBe('MOVING');
+        });
+
+        it('should skip inactive players when forfeiting on 3 sixes', () => {
+            // Non-weighted: 0.99 -> 6
+            const mock = new MockDiceProvider([0.99]);
+            // 4-player game: RED (all pawns on board), BLUE (inactive), GREEN, YELLOW
+            const state = createInitialState('TEST01');
+            state.players = [
+                createPlayer('p1', 'Alice', 'RED'),
+                { ...createPlayer('p2', 'Bob', 'BLUE'), isActive: false },
+                createPlayer('p3', 'Carol', 'GREEN'),
+                createPlayer('p4', 'Dave', 'YELLOW'),
+            ];
+            // Move all RED pawns onto board (non-weighted dice)
+            state.pawns = [
+                { id: 'RED_0', color: 'RED', position: 5, pawnIndex: 0 },
+                { id: 'RED_1', color: 'RED', position: 6, pawnIndex: 1 },
+                { id: 'RED_2', color: 'RED', position: 7, pawnIndex: 2 },
+                { id: 'RED_3', color: 'RED', position: 8, pawnIndex: 3 },
+            ];
+            state.currentTurn = 'RED';
+            state.gamePhase = 'ROLLING';
+            state.consecutiveSixes = 2;
+
+            const result = handleRollRequest(state, 'p1', mock);
+
+            expect(result.success).toBe(true);
+            // BLUE is inactive, so next active player is GREEN
+            expect(result.newState.currentTurn).toBe('GREEN');
+            expect(result.newState.consecutiveSixes).toBe(0);
         });
     });
 });

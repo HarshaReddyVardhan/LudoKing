@@ -1,33 +1,3 @@
-import { GameState, PlayerColor } from '../shared/types';
-import { BOARD } from '../shared/board';
-import { DICE_MAX_VALUE } from '../shared/constants';
-
-export interface BotAction {
-    type: 'ROLL' | 'MOVE' | 'SKIP';
-    pawnId?: string;
-    diceValue?: number;
-}
-
-export interface BotStrategy {
-    computeNextMove(gameState: GameState, playerColor: string): BotAction;
-}
-
-/**
- * Calculates how far a position is from the player's start.
- * Used to prioritize moving pawns closer to the goal.
- */
-export function getDistanceFromStart(pos: number, color: PlayerColor): number {
-    if (pos === BOARD.HOME) return 0;
-    if (pos === BOARD.GOAL) return BOARD.MAIN_TRACK_LENGTH + DICE_MAX_VALUE;
-
-    if (pos >= BOARD.HOME_STRETCH_START) {
-        // Distance on main track portion (52) + distance into home stretch
-        // Home stretch starts at 53.
-        return BOARD.MAIN_TRACK_LENGTH + (pos - BOARD.HOME_STRETCH_START);
-    }
-
-    const start = BOARD.START_POSITIONS[color];
-    // Main track distance: (pos - start + 52) % 52
-    // If pos == start, dist is 0.
-    return (pos - start + BOARD.MAIN_TRACK_LENGTH) % BOARD.MAIN_TRACK_LENGTH;
-}
+// Re-export from canonical location for backward compatibility.
+// New code should import from src/logic/bot/botUtils.
+export * from './bot/botUtils';

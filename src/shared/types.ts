@@ -39,7 +39,7 @@ export interface GameState {
     pawns: Pawn[];
     currentTurn: PlayerColor;
     currentDiceValue: number | null;
-    gamePhase: 'WAITING' | 'ROLLING' | 'MOVING' | 'FINISHED';
+    gamePhase: 'WAITING' | 'ROLLING' | 'ROLLING_ANIMATION' | 'MOVING' | 'FINISHED';
     roomCode: string;
     maxPlayers: number; // Configurable limit (2-4)
     lastUpdate: number;
@@ -81,6 +81,11 @@ export const StartGameRequestSchema = z.object({
     type: z.literal('START_GAME')
 });
 export type StartGameRequest = z.infer<typeof StartGameRequestSchema>;
+
+export const AnimationAckSchema = z.object({
+    type: z.literal('ANIMATION_ACK')
+});
+export type AnimationAck = z.infer<typeof AnimationAckSchema>;
 
 // Server -> Client Messages
 
@@ -196,7 +201,8 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
     RollRequestSchema,
     MoveRequestSchema,
     AddBotRequestSchema,
-    StartGameRequestSchema
+    StartGameRequestSchema,
+    AnimationAckSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;

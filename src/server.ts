@@ -1,5 +1,5 @@
 import type * as Party from "partykit/server";
-import { GameState, ClientMessage, ClientMessageSchema } from "./shared/types";
+import { GameState, ServerMessage, ClientMessageSchema } from "./shared/types";
 import { createInitialState } from "./logic/gameState";
 import { handleRollRequest } from "./logic/diceEngine";
 import { getValidMoves, getValidPawnIds, executeMove } from "./logic/moveValidation";
@@ -18,12 +18,26 @@ import {
 import { SimpleBot } from "./logic/simpleBot";
 
 // Turn timeout in milliseconds (30 seconds)
-// Turn timeout in milliseconds (2 minutes)
 const TURN_TIMEOUT_MS = 30 * 1000;
+// How long to wait for client animation before proceeding (2 seconds)
+const ANIMATION_DELAY_MS = 2000;
 
-// Message types from client
-// Local interfaces removed in favor of shared types
+// ─── Type-safe send helper ────────────────────────────────────────────────────
+/**
+ * Sends a strongly-typed ServerMessage to a single connection.
+ * Prevents typos in JSON keys by enforcing the ServerMessage union at compile time.
+ */
+function send(conn: Party.Connection, msg: ServerMessage): void {
+    conn.send(JSON.stringify(msg));
+}
 
+/**
+ * Broadcasts a strongly-typed ServerMessage to all connections in the room.
+ */
+function broadcast(room: Party.Room, msg: ServerMessage): void {
+    room.broadcast(JSON.stringify(msg));
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default class LudoServer implements Party.Server {
     gameState: GameState;
@@ -39,12 +53,8 @@ export default class LudoServer implements Party.Server {
 
     onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
         console.log(`Connection established: ${conn.id} in room ${this.roomCode}`);
-
-        // Send room info
-        conn.send(JSON.stringify(createRoomInfoMessage(this.roomCode, this.gameState)));
-
-        // Send current state
-        conn.send(JSON.stringify(createStateSyncMessage(this.gameState)));
+        send(conn, createRoomInfoMessage(this.roomCode, this.gameState) as ServerMessage);
+        send(conn, createStateSyncMessage(this.gameState) as ServerMessage);
     }
 
     async onClose(conn: Party.Connection) {
@@ -53,6 +63,46 @@ export default class LudoServer implements Party.Server {
         // If the room is empty, clean up
         if (this.room.connections.size === 0) {
             await deleteRoom(this.roomCode, this.room);
+            return;
+        }
+
+        // ISSUE FIX: If the disconnected player was the active (current) turn player,
+        // immediately force-skip their turn rather than waiting for timeout.
+        const disconnectedPlayer = this.gameState.players.find(
+            p => p.connectionId === conn.id
+        );
+
+        if (
+            disconnectedPlayer &&
+            !disconnectedPlayer.isBot &&
+            disconnectedPlayer.color === this.gameState.currentTurn &&
+            (this.gameState.gamePhase === 'ROLLING' ||
+                this.gameState.gamePhase === 'ROLLING_ANIMATION' ||
+                this.gameState.gamePhase === 'MOVING')
+        ) {
+            console.log(
+                `Active player ${disconnectedPlayer.name} disconnected mid-turn — force skipping.`
+            );
+
+            // Mark player as inactive
+            this.gameState = {
+                ...this.gameState,
+                players: this.gameState.players.map(p =>
+                    p.id === disconnectedPlayer.id ? { ...p, isActive: false } : p
+                ),
+            };
+
+            this.cancelTurnTimer();
+            this.skipTurn();
+            this.broadcastState();
+        } else if (disconnectedPlayer) {
+            // Not their turn — just mark inactive
+            this.gameState = {
+                ...this.gameState,
+                players: this.gameState.players.map(p =>
+                    p.id === disconnectedPlayer.id ? { ...p, isActive: false } : p
+                ),
+            };
         }
     }
 
@@ -61,14 +111,14 @@ export default class LudoServer implements Party.Server {
         try {
             json = JSON.parse(message);
         } catch {
-            sender.send(JSON.stringify({ type: 'ERROR', code: 'INVALID_JSON', message: 'Invalid JSON' }));
+            send(sender, { type: 'ERROR', code: 'INVALID_JSON', message: 'Invalid JSON' });
             return;
         }
 
         const result = ClientMessageSchema.safeParse(json);
         if (!result.success) {
             console.error("Validation error:", result.error);
-            sender.send(JSON.stringify({ type: 'ERROR', code: 'INVALID_FORMAT', message: 'Invalid message format' }));
+            send(sender, { type: 'ERROR', code: 'INVALID_FORMAT', message: 'Invalid message format' });
             return;
         }
 
@@ -77,7 +127,14 @@ export default class LudoServer implements Party.Server {
         try {
             switch (parsed.type) {
                 case 'JOIN_REQUEST':
-                    this.handleJoin(sender, parsed.name, parsed.create, parsed.playerId, parsed.totalPlayers, parsed.botCount);
+                    this.handleJoin(
+                        sender,
+                        parsed.name,
+                        parsed.create,
+                        parsed.playerId,
+                        parsed.totalPlayers,
+                        parsed.botCount
+                    );
                     break;
                 case 'ROLL_REQUEST':
                     this.handleRoll(sender);
@@ -85,16 +142,27 @@ export default class LudoServer implements Party.Server {
                 case 'MOVE_REQUEST':
                     this.handleMove(sender, parsed.pawnId);
                     break;
+                case 'ANIMATION_ACK':
+                    this.handleAnimationAck(sender);
+                    break;
                 case 'START_GAME':
                     if (this.gameState.players.length < 2) {
-                        sender.send(JSON.stringify({ type: 'ERROR', code: 'NOT_ENOUGH_PLAYERS', message: 'Need at least 2 players to start' }));
+                        send(sender, {
+                            type: 'ERROR',
+                            code: 'NOT_ENOUGH_PLAYERS',
+                            message: 'Need at least 2 players to start',
+                        });
                         return;
                     }
 
                     // Only host (first player) can start
                     const host = this.gameState.players[0];
                     if (!host || host.connectionId !== sender.id) {
-                        sender.send(JSON.stringify({ type: 'ERROR', code: 'NOT_HOST', message: 'Only the host can start the game' }));
+                        send(sender, {
+                            type: 'ERROR',
+                            code: 'NOT_HOST',
+                            message: 'Only the host can start the game',
+                        });
                         return;
                     }
 
@@ -103,7 +171,7 @@ export default class LudoServer implements Party.Server {
                     }
 
                     this.gameState.gamePhase = 'ROLLING';
-                    this.gameState.currentTurn = 'RED'; // Always start with RED
+                    this.gameState.currentTurn = 'RED';
 
                     this.startTurnTimer();
                     this.broadcastState();
@@ -112,20 +180,26 @@ export default class LudoServer implements Party.Server {
                     this.handleAddBot(sender);
                     break;
                 default:
-                    sender.send(JSON.stringify({ type: 'ERROR', code: 'UNKNOWN_TYPE', message: 'Unknown message type' }));
+                    send(sender, { type: 'ERROR', code: 'UNKNOWN_TYPE', message: 'Unknown message type' });
             }
         } catch (err) {
             console.error("Game Logic Processing Error:", err);
-            sender.send(JSON.stringify({
+            send(sender, {
                 type: 'ERROR',
                 code: 'INTERNAL_ERROR',
-                message: err instanceof Error ? err.message : 'Unknown server error'
-            }));
+                message: err instanceof Error ? err.message : 'Unknown server error',
+            });
         }
     }
 
-    private handleJoin(conn: Party.Connection, name: string, create: boolean = false, playerId?: string, totalPlayers?: number, botCount?: number) {
-        // Delegate to room utils for join logic
+    private handleJoin(
+        conn: Party.Connection,
+        name: string,
+        create: boolean = false,
+        playerId?: string,
+        totalPlayers?: number,
+        botCount?: number
+    ) {
         const result = handlePlayerJoin(
             this.gameState,
             conn.id,
@@ -137,28 +211,23 @@ export default class LudoServer implements Party.Server {
         );
 
         if (!result.success) {
-            conn.send(JSON.stringify(createJoinRejectedMessage(result.error || 'Join failed')));
+            send(conn, createJoinRejectedMessage(result.error || 'Join failed') as ServerMessage);
             return;
         }
 
-        // Update game state if modified
         if (result.updatedState) {
             this.gameState = result.updatedState;
         }
 
-        // Send success message to the joining player
-        conn.send(JSON.stringify(
-            createJoinSuccessMessage(result.player!, this.roomCode, result.reconnected)
-        ));
+        send(conn, createJoinSuccessMessage(result.player!, this.roomCode, result.reconnected) as ServerMessage);
 
-        // Broadcast player joined event if not a reconnection
         if (!result.reconnected) {
-            this.room.broadcast(JSON.stringify(
-                createPlayerJoinedMessage(result.player!, this.gameState.players.length)
-            ));
+            broadcast(
+                this.room,
+                createPlayerJoinedMessage(result.player!, this.gameState.players.length) as ServerMessage
+            );
         }
 
-        // Add bots if this is room creation
         if (create && botCount && botCount > 0) {
             console.log(`Creating ${botCount} bots for room ${this.roomCode}`);
             this.gameState = addMultipleBots(this.gameState, botCount);
@@ -169,7 +238,6 @@ export default class LudoServer implements Party.Server {
 
     private handleAddBot(conn: Party.Connection) {
         const result = addBotToGame(this.gameState);
-
         if (result.success && result.updatedState) {
             this.gameState = result.updatedState;
             this.broadcastState();
@@ -178,83 +246,113 @@ export default class LudoServer implements Party.Server {
 
     private handleRoll(conn: Party.Connection) {
         if (this.isProcessingTurn) {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' }));
+            send(conn, { type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' });
             return;
         }
 
-        // Validate that current turn is NOT a bot
-        const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
+        const currentPlayer = this.gameState.players.find(
+            p => p.color === this.gameState.currentTurn
+        );
         if (currentPlayer?.isBot) {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'BOT_TURN', message: 'Wait for bot turn' }));
+            send(conn, { type: 'ERROR', code: 'BOT_TURN', message: 'Wait for bot turn' });
             return;
         }
 
         const result = handleRollRequest(this.gameState, conn.id);
 
         if (!result.success) {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'ROLL_FAILED', message: result.error }));
+            send(conn, { type: 'ERROR', code: 'ROLL_FAILED', message: result.error ?? 'Roll failed' });
             return;
         }
 
-        this.skippedTurns.set(conn.id, 0); // Reset skip count on valid activity
-        this.cancelTurnTimer(); // Cancel previous timer
+        this.skippedTurns.set(conn.id, 0);
+        this.cancelTurnTimer();
 
         this.gameState = result.newState;
         const validPawnIds = getValidPawnIds(this.gameState);
 
-        this.room.broadcast(JSON.stringify({
+        // Enter ROLLING_ANIMATION phase — tell clients to play the dice animation.
+        // The server moves to MOVING only after ANIMATION_ACK (or timeout fallback).
+        this.gameState = {
+            ...this.gameState,
+            gamePhase: 'ROLLING_ANIMATION',
+        };
+
+        broadcast(this.room, {
             type: 'DICE_RESULT',
-            diceValue: result.diceValue,
+            diceValue: result.diceValue!,
             player: this.gameState.currentTurn,
             validPawnIds,
-        }));
+        });
+
+        // Fallback: after ANIMATION_DELAY_MS advance automatically regardless of ACK
+        if (validPawnIds.length === 0) {
+            setTimeout(() => {
+                // Re-read state in case ACK already arrived
+                if (this.gameState.gamePhase === 'ROLLING_ANIMATION') {
+                    this.gameState = { ...this.gameState, gamePhase: 'MOVING' };
+                }
+                this.skipTurn();
+                this.broadcastState();
+            }, ANIMATION_DELAY_MS);
+        } else {
+            setTimeout(() => {
+                if (this.gameState.gamePhase === 'ROLLING_ANIMATION') {
+                    this.gameState = { ...this.gameState, gamePhase: 'MOVING' };
+                    this.startTurnTimer();
+                    this.broadcastState();
+                }
+            }, ANIMATION_DELAY_MS);
+        }
+    }
+
+    /**
+     * Client sends ANIMATION_ACK when its dice animation finishes.
+     * This allows the server to transition to MOVING earlier than the fallback timeout.
+     */
+    private handleAnimationAck(conn: Party.Connection) {
+        if (this.gameState.gamePhase !== 'ROLLING_ANIMATION') return;
+
+        const validPawnIds = getValidPawnIds(this.gameState);
+
+        this.gameState = { ...this.gameState, gamePhase: 'MOVING' };
 
         if (validPawnIds.length === 0) {
-            // Add a small delay so the user sees the dice result before turn switch
-            setTimeout(() => {
-                this.skipTurn();
-                this.broadcastState(); // Broadcast the new state (next player)
-            }, 1000);
+            this.skipTurn();
+            this.broadcastState();
         } else {
-            // Reset timer for move phase
             this.startTurnTimer();
-        }
-
-        // Note: We intentionally do NOT broadcast state here if skipping, 
-        // to avoid a jittery double-update (Dice -> Moved/Skipped).
-        // If not skipping, we broadcast below.
-        if (validPawnIds.length > 0) {
             this.broadcastState();
         }
     }
 
     private handleMove(conn: Party.Connection, pawnId: string) {
         if (this.isProcessingTurn) {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' }));
+            send(conn, { type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' });
             return;
         }
 
         const player = this.gameState.players.find(p => p.connectionId === conn.id);
         if (!player) {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: 'Player not found' }));
+            send(conn, { type: 'ERROR', code: 'MOVE_FAILED', message: 'Player not found' });
             return;
         }
 
         if (player.isBot) {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'BOT_TURN', message: 'Wait for bot turn' }));
+            send(conn, { type: 'ERROR', code: 'BOT_TURN', message: 'Wait for bot turn' });
             return;
         }
 
         if (player.color !== this.gameState.currentTurn) {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: 'Not your turn' }));
+            send(conn, { type: 'ERROR', code: 'MOVE_FAILED', message: 'Not your turn' });
             return;
         }
 
-        this.skippedTurns.set(conn.id, 0); // Reset skip count on valid activity
-        this.cancelTurnTimer(); // Cancel timer
+        this.skippedTurns.set(conn.id, 0);
+        this.cancelTurnTimer();
 
         if (this.gameState.gamePhase !== 'MOVING') {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: 'Must roll first' }));
+            send(conn, { type: 'ERROR', code: 'MOVE_FAILED', message: 'Must roll first' });
             return;
         }
 
@@ -262,20 +360,19 @@ export default class LudoServer implements Party.Server {
         const result = executeMove(this.gameState, pawnId, validMoves);
 
         if (!result.success) {
-            conn.send(JSON.stringify({ type: 'ERROR', code: 'MOVE_FAILED', message: result.error }));
+            send(conn, { type: 'ERROR', code: 'MOVE_FAILED', message: result.error ?? 'Move failed' });
             return;
         }
 
         this.gameState = result.newState;
 
-        this.room.broadcast(JSON.stringify({
+        broadcast(this.room, {
             type: 'MOVE_EXECUTED',
             pawnId,
             move: this.gameState.lastMove,
-            extraTurn: result.extraTurn,
-        }));
+            extraTurn: result.extraTurn ?? false,
+        });
 
-        // Start timer for next turn
         if (this.gameState.gamePhase !== 'FINISHED') {
             this.startTurnTimer();
         }
@@ -284,10 +381,13 @@ export default class LudoServer implements Party.Server {
     }
 
     private skipTurn() {
-        const activePlayers = this.gameState.players.filter(p => p.isActive).map(p => p.color);
+        // Only skip among unranked, active players
+        const activePlayers = this.gameState.players
+            .filter(p => p.isActive && p.rank === undefined)
+            .map(p => p.color);
 
         if (activePlayers.length === 0) {
-            console.error("No active players found in skipTurn!");
+            console.error("No active unranked players found in skipTurn!");
             return;
         }
 
@@ -299,15 +399,15 @@ export default class LudoServer implements Party.Server {
             currentTurn: activePlayers[nextIndex],
             currentDiceValue: null,
             gamePhase: 'ROLLING',
-            consecutiveSixes: 0, // Always reset streak on a skip
+            consecutiveSixes: 0,
             lastUpdate: Date.now(),
         };
 
-        this.room.broadcast(JSON.stringify({
+        broadcast(this.room, {
             type: 'TURN_SKIPPED',
             reason: 'No valid moves available',
             nextPlayer: this.gameState.currentTurn,
-        }));
+        });
 
         this.startTurnTimer();
     }
@@ -317,30 +417,30 @@ export default class LudoServer implements Party.Server {
     // =====================
 
     private startTurnTimer() {
-        if (this.gameState.gamePhase === 'WAITING' || this.gameState.gamePhase === 'FINISHED') {
+        if (
+            this.gameState.gamePhase === 'WAITING' ||
+            this.gameState.gamePhase === 'FINISHED'
+        ) {
             return;
         }
 
         this.turnStartTime = Date.now();
 
-        // Check if current player is a bot
-        const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
+        const currentPlayer = this.gameState.players.find(
+            p => p.color === this.gameState.currentTurn
+        );
         if (currentPlayer?.isBot) {
-            // Execute bot turn after a short delay (for better UX)
             this.room.storage.setAlarm(Date.now() + 1000);
         } else {
-            // Schedule alarm for timeout for human players (30s)
-            // Use the room storage alarm which persists
             this.room.storage.setAlarm(Date.now() + TURN_TIMEOUT_MS);
         }
 
-        // Notify clients about the timer
-        this.room.broadcast(JSON.stringify({
+        broadcast(this.room, {
             type: 'TURN_TIMER_START',
             player: this.gameState.currentTurn,
             timeoutMs: TURN_TIMEOUT_MS,
             startTime: this.turnStartTime,
-        }));
+        });
     }
 
     private cancelTurnTimer() {
@@ -348,7 +448,6 @@ export default class LudoServer implements Party.Server {
     }
 
     async onAlarm() {
-        // Prevent race conditions / re-entry
         if (this.isProcessingTurn) {
             console.warn("Alarm fired while turn is being processed. Ignoring to prevent race.");
             return;
@@ -357,50 +456,42 @@ export default class LudoServer implements Party.Server {
         this.isProcessingTurn = true;
 
         try {
-            // Timer expired
-            const currentPlayer = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
+            const currentPlayer = this.gameState.players.find(
+                p => p.color === this.gameState.currentTurn
+            );
 
             if (!currentPlayer) return;
 
             if (currentPlayer.isBot) {
-                // Bot logic
                 await this.update();
                 return;
             }
 
-            // Human player timed out
             const currentSkips = (this.skippedTurns.get(currentPlayer.id) || 0) + 1;
             this.skippedTurns.set(currentPlayer.id, currentSkips);
 
             console.log(`Player ${currentPlayer.name} timed out. Skips: ${currentSkips}`);
 
             if (currentSkips >= 3) {
-                // Kick logic
                 const playerToKick = currentPlayer;
 
-                // 1. Advance turn first to ensure game flow continues
                 this.skipTurn();
 
-                // 2. Remove player and their pawns
-                this.gameState.players = this.gameState.players.filter(p => p.id !== playerToKick.id);
-                this.gameState.pawns = this.gameState.pawns.filter(p => p.color !== playerToKick.color);
+                this.gameState.players = this.gameState.players.filter(
+                    p => p.id !== playerToKick.id
+                );
+                this.gameState.pawns = this.gameState.pawns.filter(
+                    p => p.color !== playerToKick.color
+                );
 
-                // 3. Notify everyone
-                this.room.broadcast(JSON.stringify({
+                broadcast(this.room, {
                     type: 'PLAYER_KICKED',
                     playerId: playerToKick.id,
-                    reason: 'AFK_TIMEOUT'
-                }));
+                    reason: 'AFK_TIMEOUT',
+                });
 
                 this.broadcastState();
-
-                // Check if game should end due to lack of players?
-                if (this.gameState.players.length < 2) {
-                    // Optionally handle game end here, but keeping it simple for now.
-                }
-
             } else {
-                // Just skip turn
                 this.skipTurn();
             }
         } catch (error) {
@@ -412,43 +503,44 @@ export default class LudoServer implements Party.Server {
 
     private async update() {
         try {
-            if (this.gameState.gamePhase === 'FINISHED' || this.gameState.gamePhase === 'WAITING') {
+            if (
+                this.gameState.gamePhase === 'FINISHED' ||
+                this.gameState.gamePhase === 'WAITING'
+            ) {
                 return;
             }
 
             const bot = new SimpleBot();
             const action = bot.computeNextMove(this.gameState, this.gameState.currentTurn);
 
-            const BOT_ACTION_DELAY = 1000; // 1s lag for faster gameplay
+            const BOT_ACTION_DELAY = 1000;
 
             if (action.type === 'ROLL') {
-                const player = this.gameState.players.find(p => p.color === this.gameState.currentTurn);
+                const player = this.gameState.players.find(
+                    p => p.color === this.gameState.currentTurn
+                );
                 if (!player) return;
 
-                // Use authoritative roll request
                 const rollResult = handleRollRequest(this.gameState, player.id);
 
                 if (rollResult.success) {
                     this.gameState = rollResult.newState;
                     const validPawnIds = getValidPawnIds(this.gameState);
 
-                    this.room.broadcast(JSON.stringify({
+                    broadcast(this.room, {
                         type: 'DICE_RESULT',
-                        diceValue: rollResult.diceValue,
+                        diceValue: rollResult.diceValue!,
                         player: this.gameState.currentTurn,
                         validPawnIds,
                         isBot: true,
-                    }));
+                    });
 
-                    // Schedule next tick to catch MOVE or SKIP
                     this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
                 } else {
                     console.error("Bot failed to roll:", rollResult.error);
                     this.skipTurn();
                 }
-
             } else if (action.type === 'MOVE') {
-                // Ensure pawnId is present for MOVE action
                 if (!action.pawnId) {
                     this.skipTurn();
                     return;
@@ -460,19 +552,17 @@ export default class LudoServer implements Party.Server {
                 if (result.success) {
                     this.gameState = result.newState;
 
-                    this.room.broadcast(JSON.stringify({
+                    broadcast(this.room, {
                         type: 'MOVE_EXECUTED',
                         pawnId: action.pawnId,
                         move: this.gameState.lastMove,
-                        extraTurn: result.extraTurn,
+                        extraTurn: result.extraTurn ?? false,
                         isBot: true,
-                    }));
+                    });
 
                     if (result.extraTurn) {
-                        // Schedule next tick for extra roll
                         this.room.storage.setAlarm(Date.now() + BOT_ACTION_DELAY);
                     } else {
-                        // Turn ends, start timer for next player
                         if (this.gameState.gamePhase !== 'FINISHED') {
                             this.startTurnTimer();
                         }
@@ -481,12 +571,11 @@ export default class LudoServer implements Party.Server {
                     console.error("Bot failed valid move");
                     this.skipTurn();
                 }
-
             } else {
-                // SKIP or No Action (e.g. rolled but no moves)
                 this.skipTurn();
             }
 
+            this.broadcastState();
         } catch (error) {
             console.error("Bot crashed, skipping turn:", error);
             this.skipTurn();
@@ -494,31 +583,31 @@ export default class LudoServer implements Party.Server {
     }
 
     private broadcastState() {
-        this.room.broadcast(JSON.stringify({
+        broadcast(this.room, {
             type: 'SYNC_STATE',
             state: this.gameState,
-        }));
+        });
     }
 
     onRequest(req: Party.Request) {
         if (req.method === "GET") {
-            return new Response(JSON.stringify({
-                status: "ok",
-                room: this.room.id,
-                roomCode: this.roomCode,
-                players: this.gameState.players.length,
-                phase: this.gameState.gamePhase,
-                currentTurn: this.gameState.currentTurn,
-            }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return new Response(
+                JSON.stringify({
+                    status: "ok",
+                    room: this.room.id,
+                    roomCode: this.roomCode,
+                    players: this.gameState.players.length,
+                    phase: this.gameState.gamePhase,
+                    currentTurn: this.gameState.currentTurn,
+                }),
+                {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' },
+                }
+            );
         }
         return new Response("Method not allowed", { status: 405 });
     }
 }
 
 LudoServer satisfies Party.Worker;
-
-
-
