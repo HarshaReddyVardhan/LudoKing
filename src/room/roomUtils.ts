@@ -102,7 +102,8 @@ export function handlePlayerReconnection(
 export function validateJoinRequest(
     gameState: GameState,
     create: boolean,
-    connectionId: string
+    connectionId: string,
+    name?: string
 ): { valid: boolean; error?: string } {
     const playerCount = gameState.players.length;
 
@@ -116,11 +117,21 @@ export function validateJoinRequest(
         return { valid: false, error: `Room is full (max ${gameState.maxPlayers} players)` };
     }
 
-    // Check for duplicate connection
-    const alreadyJoined = gameState.players.find(p => p.connectionId === connectionId);
-    if (alreadyJoined) {
-        // This is actually a success case - player already joined
+    // Check for duplicate connectionId (already joined via same socket)
+    const alreadyJoinedById = gameState.players.find(p => p.connectionId === connectionId);
+    if (alreadyJoinedById) {
+        // This is actually a success case - player re-used same connection
         return { valid: true };
+    }
+
+    // Check for duplicate name - prevent same player joining twice under a different connection
+    if (name) {
+        const alreadyJoinedByName = gameState.players.find(
+            p => p.name.trim().toLowerCase() === name.trim().toLowerCase()
+        );
+        if (alreadyJoinedByName) {
+            return { valid: false, error: `Player with name "${name}" is already in this room` };
+        }
     }
 
     return { valid: true };
@@ -177,8 +188,8 @@ export function handlePlayerJoin(
     if (create && totalPlayers && gameState.players.length === 0) {
         gameState.maxPlayers = Math.max(2, Math.min(4, totalPlayers));
     }
+
     // 1. Handle reconnection if playerId provided
-    if (playerId) {
     if (playerId) {
         const reconnectResult = handlePlayerReconnection(gameState, playerId, connectionId, conn);
         if (reconnectResult.success) {
@@ -186,13 +197,13 @@ export function handlePlayerJoin(
         }
     }
 
-    // 2. Validate join request
-    const validation = validateJoinRequest(gameState, create, connectionId);
+    // 2. Validate join request (includes name-duplicate check)
+    const validation = validateJoinRequest(gameState, create, connectionId, name);
     if (!validation.valid) {
         return { success: false, error: validation.error };
     }
 
-    // 3. Check if already joined (return success)
+    // 3. Check if already joined by connectionId (return success without re-adding)
     const alreadyJoined = gameState.players.find(p => p.connectionId === connectionId);
     if (alreadyJoined) {
         return {

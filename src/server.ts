@@ -299,6 +299,7 @@ export default class LudoServer implements Party.Server {
             currentTurn: activePlayers[nextIndex],
             currentDiceValue: null,
             gamePhase: 'ROLLING',
+            consecutiveSixes: 0, // Always reset streak on a skip
             lastUpdate: Date.now(),
         };
 

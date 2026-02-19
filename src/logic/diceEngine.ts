@@ -143,7 +143,8 @@ export function resetToRollingPhase(state: GameState, nextTurn: PlayerColor): Ga
         gamePhase: 'ROLLING',
         currentTurn: nextTurn,
         lastUpdate: Date.now(),
-        // Reset consecutive sixes if turn changes
-        consecutiveSixes: isSameTurn ? (state.consecutiveSixes || 0) : 0,
+        // Preserve consecutive-six streak only when the same player gets a bonus roll.
+        // On any natural turn change reset to 0.
+        consecutiveSixes: isSameTurn ? (state.consecutiveSixes ?? 0) : 0,
     };
 }

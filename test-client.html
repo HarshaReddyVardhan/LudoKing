@@ -243,6 +243,14 @@
         const PARTYKIT_HOST = 'localhost:1999';
         let ws = null;
 
+        // Tracks this client's current game state for validation
+        const clientState = {
+            myColor: null,       // set on JOIN_SUCCESS
+            currentTurn: null,   // updated from SYNC_STATE
+            gamePhase: null,     // updated from SYNC_STATE
+            validPawnIds: [],    // updated from DICE_RESULT
+        };
+
         const $ = id => document.getElementById(id);
 
         function log(msg, type = 'info') {
@@ -335,15 +343,20 @@
                         $('roomCode').textContent = data.roomCode;
                         break;
                     case 'SYNC_STATE':
+                        clientState.currentTurn = data.state.currentTurn;
+                        clientState.gamePhase = data.state.gamePhase;
                         $('gamePhase').textContent = data.state.gamePhase;
                         $('currentTurn').textContent = data.state.currentTurn;
                         updatePlayers(data.state.players);
                         break;
                     case 'DICE_RESULT':
+                        clientState.validPawnIds = data.validPawnIds || [];
+                        clientState.gamePhase = 'MOVING'; // Server moved to MOVING phase after dice
                         $('diceResult').textContent = `Rolled: ${data.diceValue}${data.isBot ? ' (BOT)' : ''}`;
-                        $('validPawns').textContent = data.validPawnIds?.join(', ') || 'None';
+                        $('validPawns').textContent = clientState.validPawnIds.join(', ') || 'None';
                         break;
                     case 'JOIN_SUCCESS':
+                        clientState.myColor = data.player.color;
                         log(`Joined as ${data.player.color}!`, 'info');
                         break;
                     case 'PLAYER_JOINED':
@@ -396,6 +409,20 @@
         });
 
         $('rollBtn').addEventListener('click', () => {
+            // Client-side guard: must be your turn and in ROLLING phase
+            if (!clientState.myColor) {
+                log('You have not joined the game yet', 'error');
+                return;
+            }
+            if (clientState.currentTurn !== clientState.myColor) {
+                log(`Not your turn! Current turn: ${clientState.currentTurn}`, 'error');
+                return;
+            }
+            if (clientState.gamePhase !== 'ROLLING') {
+                log(`Cannot roll: game is in ${clientState.gamePhase} phase (must be ROLLING)`, 'error');
+                return;
+            }
+
             const msg = JSON.stringify({ type: 'ROLL_REQUEST' });
             log(`→ ${msg}`, 'send');
             ws.send(msg);
@@ -407,6 +434,25 @@
                 log('Enter a pawn ID first', 'error');
                 return;
             }
+
+            // Client-side guard: must be your turn and in MOVING phase
+            if (!clientState.myColor) {
+                log('You have not joined the game yet', 'error');
+                return;
+            }
+            if (clientState.currentTurn !== clientState.myColor) {
+                log(`Not your turn! Current turn: ${clientState.currentTurn}`, 'error');
+                return;
+            }
+            if (clientState.gamePhase !== 'MOVING') {
+                log(`Cannot move: game is in ${clientState.gamePhase} phase (must be MOVING)`, 'error');
+                return;
+            }
+            if (clientState.validPawnIds.length > 0 && !clientState.validPawnIds.includes(pawnId)) {
+                log(`Pawn "${pawnId}" is not a valid move. Valid pawns: ${clientState.validPawnIds.join(', ')}`, 'error');
+                return;
+            }
+
             const msg = JSON.stringify({ type: 'MOVE_REQUEST', pawnId });
             log(`→ ${msg}`, 'send');
             ws.send(msg);

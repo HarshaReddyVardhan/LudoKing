@@ -1,6 +1,7 @@
 import { GameState, Pawn, PlayerColor, MoveLog } from '../shared/types';
 import { BOARD, getNextTurn, isSafeSquare, toGlobalPosition } from '../shared/board';
 import { SAFE_ZONES, ENTER_BOARD_DICE_ROLL } from '../shared/constants';
+import { checkWinCondition } from './gameState';
 
 export interface ValidMove {
     pawnId: string;
@@ -191,21 +192,18 @@ export function executeMove(
     const activePlayers = state.players.filter(p => p.isActive).map(p => p.color);
     const nextTurn = extraTurn ? state.currentTurn : getNextTurn(state.currentTurn, activePlayers);
 
-    // Check for winner (all 4 pawns at goal)
-    const playerPawns = newPawns.filter(p => p.color === state.currentTurn);
-    const allAtGoal = playerPawns.every(p => p.position === BOARD.GOAL);
-    const winner = allAtGoal ? state.currentTurn : undefined;
-
-    const newState: GameState = {
+    const pendingState: GameState = {
         ...state,
         pawns: newPawns,
         currentDiceValue: null,
-        gamePhase: winner ? 'FINISHED' : 'ROLLING',
-        currentTurn: winner ? state.currentTurn : nextTurn,
+        gamePhase: 'ROLLING',
+        currentTurn: nextTurn,
         lastMove,
         lastUpdate: Date.now(),
-        winner,
     };
+
+    // Evaluate player ranks and detect FINISHED phase
+    const newState = checkWinCondition(pendingState);
 
     return { success: true, newState, extraTurn };
 }
