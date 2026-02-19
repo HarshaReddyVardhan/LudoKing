@@ -26,7 +26,7 @@ export const BOARD = {
 
     // Position where each color exits main track to enter home stretch
     HOME_ENTRY_POSITIONS: {
-        RED: 52,
+        RED: BOARD_PATH_LENGTH,   // = 52 (last square on main track before home stretch)
         BLUE: 13,
         GREEN: 26,
         YELLOW: 39,

@@ -112,6 +112,13 @@ export function validateJoinRequest(
         return { valid: false, error: 'Room does not exist' };
     }
 
+    // Reject new players joining after game has already started.
+    // Reconnections are handled upstream (via handlePlayerReconnection) before
+    // this function is ever called, so this only blocks truly new joiners.
+    if (gameState.gamePhase !== 'WAITING') {
+        return { valid: false, error: 'Game already in progress — new players cannot join' };
+    }
+
     // Check if room is full
     if (playerCount >= gameState.maxPlayers) {
         return { valid: false, error: `Room is full (max ${gameState.maxPlayers} players)` };
