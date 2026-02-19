@@ -15,7 +15,7 @@ export function getBoardPosition(globalIndex: number): Vector3 {
     const clampedIndex = Math.max(1, Math.min(52, globalIndex));
 
     const angle = ((clampedIndex - 1) / 52) * Math.PI * 2;
-    const radius = 6;
+    const radius = 7;
     const finalAngle = angle - (Math.PI / 2) + (Math.PI / 52);
 
     return {
@@ -31,13 +31,14 @@ export function getBoardPosition(globalIndex: number): Vector3 {
  * @param stepIndex - The step in the home stretch (0-5, where 5 is the goal)
  */
 export function getHomePosition(color: PlayerColor, stepIndex: number): Vector3 {
-    const baseVal = 6 - stepIndex;
+    const baseVal = 7 - stepIndex;
 
     switch (color) {
         case 'RED': return { x: 0, y: 0, z: -baseVal };
         case 'GREEN': return { x: -baseVal, y: 0, z: 0 };
         case 'YELLOW': return { x: 0, y: 0, z: baseVal };
         case 'BLUE': return { x: baseVal, y: 0, z: 0 };
+        default: return { x: 0, y: 0, z: 0 };
     }
 }
 
@@ -49,10 +50,10 @@ export function getHomePosition(color: PlayerColor, stepIndex: number): Vector3 
 export function getPawn3DPosition(color: PlayerColor, logicalPosition: number): Vector3 {
     if (logicalPosition === BOARD.HOME) {
         switch (color) {
-            case 'RED': return { x: 5, y: 0, z: -5 };
-            case 'BLUE': return { x: -5, y: 0, z: -5 };
-            case 'YELLOW': return { x: -5, y: 0, z: 5 };
-            case 'GREEN': return { x: 5, y: 0, z: 5 };
+            case 'RED': return { x: 6, y: 0, z: -6 };
+            case 'BLUE': return { x: -6, y: 0, z: -6 };
+            case 'YELLOW': return { x: -6, y: 0, z: 6 };
+            case 'GREEN': return { x: 6, y: 0, z: 6 };
         }
     }
 

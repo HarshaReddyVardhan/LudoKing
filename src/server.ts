@@ -23,7 +23,7 @@ import { CONFIG } from "./config";
 // Turn timeout in milliseconds
 const TURN_TIMEOUT_MS = CONFIG.TURN_TIMEOUT_MS;
 // How long to wait for client animation before proceeding
-const ANIMATION_DELAY_MS = 2000;
+const ANIMATION_DELAY_MS = CONFIG.ANIMATION_DELAY_MS;
 
 import { Logger } from "./utils/logger";
 

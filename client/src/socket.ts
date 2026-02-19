@@ -1,6 +1,11 @@
 import { type ServerMessage, ServerMessageSchema } from '../../src/shared/types';
 
-const PARTYKIT_HOST = 'localhost:1999';
+// Use env var if set (build-time), otherwise fall back to current host in prod or localhost in dev
+const PARTYKIT_HOST: string =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_PARTYKIT_HOST) ||
+    (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+        ? window.location.host
+        : 'localhost:1999');
 
 let socket: WebSocket | null = null;
 let currentRoom: string | null = null;
@@ -15,7 +20,8 @@ type MessageHandler = (data: ServerMessage) => void;
 export function connect(joinedRoom: string, onMessage: MessageHandler) {
     currentRoom = joinedRoom;
     currentMessageHandler = onMessage;
-    const url = `ws://${PARTYKIT_HOST}/parties/main/${joinedRoom}`;
+    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const url = `${isSecure ? 'wss' : 'ws'}://${PARTYKIT_HOST}/parties/main/${joinedRoom}`;
     console.log('Connecting to', url);
 
     socket = new WebSocket(url);
