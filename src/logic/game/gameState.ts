@@ -1,13 +1,13 @@
-import { GameState, Player, Pawn, PlayerColor, COLORS } from '../../shared/types';
+import { GameState, Player, Pawn, PlayerColor, COLORS, Color, GamePhase } from '../../shared/types';
 import { PAWNS_PER_PLAYER, POSITION_GOAL, POSITION_HOME } from '../../shared/constants';
 
 export function createInitialState(roomCode: string): GameState {
     return {
         players: [],
         pawns: [],
-        currentTurn: 'RED',
+        currentTurn: Color.RED,
         currentDiceValue: null,
-        gamePhase: 'WAITING',
+        gamePhase: GamePhase.WAITING,
         roomCode,
         maxPlayers: 4,
         lastUpdate: Date.now(),
@@ -58,7 +58,7 @@ export function checkWinCondition(state: GameState): GameState {
     const totalPlayers = newPlayers.length;
     const unrankedPlayers = newPlayers.filter(p => p.rank === undefined);
     const playersRemaining = unrankedPlayers.length;
-    let newGamePhase = state.gamePhase;
+    let newGamePhase: GamePhase = state.gamePhase;
     let phaseChanged = false;
 
     if (totalPlayers > 1 && playersRemaining === 1) {
@@ -71,8 +71,8 @@ export function checkWinCondition(state: GameState): GameState {
 
     const allRanked = newPlayers.every(p => p.rank !== undefined);
     if (allRanked || (totalPlayers === 1 && playersRemaining === 0)) {
-        if (newGamePhase !== 'FINISHED') {
-            newGamePhase = 'FINISHED';
+        if (newGamePhase !== GamePhase.FINISHED) {
+            newGamePhase = GamePhase.FINISHED;
             phaseChanged = true;
         }
     }
@@ -87,3 +87,4 @@ export function checkWinCondition(state: GameState): GameState {
 
     return state;
 }
+

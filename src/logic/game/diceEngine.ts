@@ -1,4 +1,4 @@
-import { GameState, PlayerColor, COLORS } from '../../shared/types';
+import { GameState, PlayerColor, COLORS, GamePhase, Color } from '../../shared/types';
 import { MAX_CONSECUTIVE_SIXES, ROLL_DEBOUNCE_MS, POSITION_HOME, DICE_MAX_VALUE, WEIGHTED_SIX_PROBABILITY } from '../../shared/constants';
 
 export interface IDiceProvider {
@@ -38,7 +38,7 @@ export function handleRollRequest(
 
     if (!player) return { success: false, newState: state, error: 'Player not found' };
     if (player.color !== currentTurn) return { success: false, newState: state, error: 'Not your turn' };
-    if (gamePhase !== 'ROLLING') {
+    if (gamePhase !== GamePhase.ROLLING) {
         return {
             success: false,
             newState: state,
@@ -75,7 +75,7 @@ export function handleRollRequest(
             newState: {
                 ...state,
                 currentDiceValue: null,
-                gamePhase: 'ROLLING',
+                gamePhase: GamePhase.ROLLING,
                 currentTurn: nextTurn,
                 lastUpdate: now,
                 consecutiveSixes: 0,
@@ -89,7 +89,7 @@ export function handleRollRequest(
         newState: {
             ...state,
             currentDiceValue: diceValue,
-            gamePhase: 'MOVING',
+            gamePhase: GamePhase.MOVING,
             lastUpdate: now,
             consecutiveSixes,
             lastRollTime: now,
@@ -103,9 +103,10 @@ export function resetToRollingPhase(state: GameState, nextTurn: PlayerColor): Ga
     return {
         ...state,
         currentDiceValue: null,
-        gamePhase: 'ROLLING',
+        gamePhase: GamePhase.ROLLING,
         currentTurn: nextTurn,
         lastUpdate: Date.now(),
         consecutiveSixes: isSameTurn ? (state.consecutiveSixes ?? 0) : 0,
     };
 }
+

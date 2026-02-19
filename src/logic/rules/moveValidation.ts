@@ -1,4 +1,4 @@
-import { GameState, Pawn, PlayerColor, MoveLog } from '../../shared/types';
+import { GameState, Pawn, PlayerColor, MoveLog, GamePhase } from '../../shared/types';
 import { BOARD, getNextTurn, isSafeSquare, toGlobalPosition } from '../../shared/board';
 import { SAFE_ZONES, ENTER_BOARD_DICE_ROLL } from '../../shared/constants';
 import { checkWinCondition } from '../game/gameState';
@@ -168,7 +168,7 @@ export function executeMove(
         ...state,
         pawns: newPawns,
         currentDiceValue: null,
-        gamePhase: 'ROLLING',
+        gamePhase: GamePhase.ROLLING,
         currentTurn: nextTurn,
         lastMove,
         lastUpdate: Date.now(),

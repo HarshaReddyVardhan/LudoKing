@@ -1,12 +1,27 @@
 import { z } from "zod";
 
-export type PlayerColor = 'RED' | 'BLUE' | 'GREEN' | 'YELLOW';
+export enum Color {
+    RED = 'RED',
+    BLUE = 'BLUE',
+    GREEN = 'GREEN',
+    YELLOW = 'YELLOW'
+}
 
-export const COLORS: PlayerColor[] = ['RED', 'BLUE', 'GREEN', 'YELLOW'];
+export type PlayerColor = Color;
+
+export const COLORS: Color[] = [Color.RED, Color.BLUE, Color.GREEN, Color.YELLOW];
+
+export enum GamePhase {
+    WAITING = 'WAITING',
+    ROLLING = 'ROLLING',
+    ROLLING_ANIMATION = 'ROLLING_ANIMATION',
+    MOVING = 'MOVING',
+    FINISHED = 'FINISHED'
+}
 
 export interface Pawn {
     id: string; // e.g. "RED_0"
-    color: PlayerColor;
+    color: Color;
     position: number; // 0=Home, 1-52=Board, 53-57=HomePath, 58=Goal. 
     // Note: This is an abstraction. Real board mapping might differ.
     // For specific implementation:
@@ -20,14 +35,14 @@ export interface Player {
     id: string; // stable player id (persisted)
     connectionId: string; // transient socket id
     name: string;
-    color: PlayerColor;
+    color: Color;
     isBot: boolean;
     isActive: boolean;
     rank?: number; // 1 = 1st, 2 = 2nd, etc.
 }
 
 export interface MoveLog {
-    player: PlayerColor;
+    player: Color;
     pawnId: string;
     from: number;
     to: number;
@@ -37,14 +52,14 @@ export interface MoveLog {
 export interface GameState {
     players: Player[];
     pawns: Pawn[];
-    currentTurn: PlayerColor;
+    currentTurn: Color;
     currentDiceValue: number | null;
-    gamePhase: 'WAITING' | 'ROLLING' | 'ROLLING_ANIMATION' | 'MOVING' | 'FINISHED';
+    gamePhase: GamePhase;
     roomCode: string;
     maxPlayers: number; // Configurable limit (2-4)
     lastUpdate: number;
     lastMove: MoveLog | null; // For Rewind/History
-    winner?: PlayerColor;
+    winner?: Color;
     consecutiveSixes?: number; // Track for 3-sixes rule
     lastRollTime?: number; // For debounce
 }
@@ -123,7 +138,7 @@ export interface SyncStateMsg {
 export interface DiceResultMsg {
     type: 'DICE_RESULT';
     diceValue: number;
-    player: PlayerColor;
+    player: Color;
     validPawnIds: string[];
     isBot?: boolean;
 }
@@ -139,7 +154,7 @@ export interface MoveExecutedMsg {
 export interface TurnSkippedMsg {
     type: 'TURN_SKIPPED';
     reason: string;
-    nextPlayer: PlayerColor;
+    nextPlayer: Color;
 }
 
 export interface PawnKilledMsg {
@@ -162,7 +177,7 @@ export interface PlayerKickedMsg {
 
 export interface TurnTimerStartMsg {
     type: 'TURN_TIMER_START';
-    player: PlayerColor;
+    player: Color;
     timeoutMs: number;
     startTime: number;
 }
@@ -170,7 +185,7 @@ export interface TurnTimerStartMsg {
 export interface BotTakeoverMsg {
     type: 'BOT_TAKEOVER';
     playerId: string;
-    color: PlayerColor;
+    color: Color;
 }
 
 export interface ErrorPayload {
