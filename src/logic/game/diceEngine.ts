@@ -64,7 +64,7 @@ export function handleRollRequest(
         const currentColor = currentTurn;
         let nextPlayerColor = currentColor;
 
-        const activePlayers = players.filter(p => p.isActive); // Should we exclude finished?
+        const activePlayers = players.filter(p => p.isActive && !p.rank);
         const currentIndex = activePlayers.findIndex(p => p.color === currentColor);
 
         if (currentIndex !== -1) {
