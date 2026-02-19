@@ -109,122 +109,192 @@ export type ResetGame = z.infer<typeof ResetGameSchema>;
 
 // Server -> Client Messages
 
-export interface RoomInfoMsg {
-    type: 'ROOM_INFO';
-    roomCode: string;
-    playerCount: number;
-    maxPlayers: number;
-    isFull: boolean;
-}
+export const RoomInfoMsgSchema = z.object({
+    type: z.literal('ROOM_INFO'),
+    roomCode: z.string(),
+    playerCount: z.number(),
+    maxPlayers: z.number(),
+    isFull: z.boolean()
+});
+export type RoomInfoMsg = z.infer<typeof RoomInfoMsgSchema>;
 
-export interface JoinSuccessMsg {
-    type: 'JOIN_SUCCESS';
-    player: Player;
-    roomCode: string;
-    reconnected?: boolean;
-}
+// Need to define supporting schemas for Player and GameState if we want full validation
+// For now, we'll use z.any() for complex nested objects to avoid massive refactor, 
+// or define minimal schemas.
+// The user asked to "Use Zod to parse incoming socket data".
+// Defining full GameState schema is best but large. 
+// I'll define basic structure.
 
-export interface JoinRejectedMsg {
-    type: 'JOIN_REJECTED';
-    error: string;
-}
+// Helper Schemas
+const ColorSchema = z.nativeEnum(Color);
+const GamePhaseSchema = z.nativeEnum(GamePhase);
 
-export interface PlayerJoinedMsg {
-    type: 'PLAYER_JOINED';
-    player: Player;
-    playerCount: number;
-}
+const PlayerSchema = z.object({
+    id: z.string(),
+    connectionId: z.string(),
+    name: z.string(),
+    color: ColorSchema,
+    isBot: z.boolean(),
+    isActive: z.boolean(),
+    rank: z.number().optional()
+});
 
-export interface SyncStateMsg {
-    type: 'SYNC_STATE';
-    state: GameState;
-}
+const PawnSchema = z.object({
+    id: z.string(),
+    color: ColorSchema,
+    position: z.number(),
+    pawnIndex: z.number()
+});
 
-export interface PatchStateMsg {
-    type: 'PATCH_STATE';
-    patch: Partial<GameState>;
-}
+const MoveLogSchema = z.object({
+    player: ColorSchema,
+    pawnId: z.string(),
+    from: z.number(),
+    to: z.number(),
+    timestamp: z.number()
+});
 
-export interface DiceResultMsg {
-    type: 'DICE_RESULT';
-    diceValue: number;
-    player: Color;
-    validPawnIds: string[];
-    isBot?: boolean;
-}
+const GameStateSchema = z.object({
+    players: z.array(PlayerSchema),
+    pawns: z.array(PawnSchema),
+    currentTurn: ColorSchema,
+    currentDiceValue: z.number().nullable(),
+    gamePhase: GamePhaseSchema,
+    roomCode: z.string(),
+    maxPlayers: z.number(),
+    lastUpdate: z.number(),
+    lastMove: MoveLogSchema.nullable(),
+    winner: ColorSchema.optional(),
+    consecutiveSixes: z.number().optional(),
+    lastRollTime: z.number().optional()
+});
 
-export interface MoveExecutedMsg {
-    type: 'MOVE_EXECUTED';
-    pawnId: string;
-    move: MoveLog | null;
-    extraTurn: boolean;
-    isBot?: boolean;
-}
+export const JoinSuccessMsgSchema = z.object({
+    type: z.literal('JOIN_SUCCESS'),
+    player: PlayerSchema,
+    roomCode: z.string(),
+    reconnected: z.boolean().optional()
+});
+export type JoinSuccessMsg = z.infer<typeof JoinSuccessMsgSchema>;
 
-export interface TurnSkippedMsg {
-    type: 'TURN_SKIPPED';
-    reason: string;
-    nextPlayer: Color;
-}
+export const JoinRejectedMsgSchema = z.object({
+    type: z.literal('JOIN_REJECTED'),
+    error: z.string()
+});
+export type JoinRejectedMsg = z.infer<typeof JoinRejectedMsgSchema>;
 
-export interface PawnKilledMsg {
-    type: 'PAWN_KILLED';
-    pawnId: string; // The pawn that was killed
-    killerPawnId?: string; // The pawn that killed it (optional)
-    position: number; // Where the kill happened
-}
+export const PlayerJoinedMsgSchema = z.object({
+    type: z.literal('PLAYER_JOINED'),
+    player: PlayerSchema,
+    playerCount: z.number()
+});
+export type PlayerJoinedMsg = z.infer<typeof PlayerJoinedMsgSchema>;
 
-export interface HomeRunMsg {
-    type: 'HOME_RUN';
-    pawnId: string;
-}
+export const SyncStateMsgSchema = z.object({
+    type: z.literal('SYNC_STATE'),
+    state: GameStateSchema
+});
+export type SyncStateMsg = z.infer<typeof SyncStateMsgSchema>;
 
-export interface PlayerKickedMsg {
-    type: 'PLAYER_KICKED';
-    playerId: string;
-    reason: string;
-}
+export const PatchStateMsgSchema = z.object({
+    type: z.literal('PATCH_STATE'),
+    patch: GameStateSchema.partial()
+});
+export type PatchStateMsg = z.infer<typeof PatchStateMsgSchema>;
 
-export interface TurnTimerStartMsg {
-    type: 'TURN_TIMER_START';
-    player: Color;
-    timeoutMs: number;
-    startTime: number;
-}
+export const DiceResultMsgSchema = z.object({
+    type: z.literal('DICE_RESULT'),
+    diceValue: z.number(),
+    player: ColorSchema,
+    validPawnIds: z.array(z.string()),
+    isBot: z.boolean().optional()
+});
+export type DiceResultMsg = z.infer<typeof DiceResultMsgSchema>;
 
-export interface BotTakeoverMsg {
-    type: 'BOT_TAKEOVER';
-    playerId: string;
-    color: Color;
-}
+export const MoveExecutedMsgSchema = z.object({
+    type: z.literal('MOVE_EXECUTED'),
+    pawnId: z.string(),
+    move: MoveLogSchema.nullable(),
+    extraTurn: z.boolean(),
+    isBot: z.boolean().optional()
+});
+export type MoveExecutedMsg = z.infer<typeof MoveExecutedMsgSchema>;
 
-export interface GameResetMsg {
-    type: 'GAME_RESET';
-}
+export const TurnSkippedMsgSchema = z.object({
+    type: z.literal('TURN_SKIPPED'),
+    reason: z.string(),
+    nextPlayer: ColorSchema
+});
+export type TurnSkippedMsg = z.infer<typeof TurnSkippedMsgSchema>;
 
-export interface ErrorPayload {
-    type: 'ERROR';
-    code: string;
-    message: string;
-}
+export const PawnKilledMsgSchema = z.object({
+    type: z.literal('PAWN_KILLED'),
+    pawnId: z.string(),
+    killerPawnId: z.string().optional(),
+    position: z.number()
+});
+export type PawnKilledMsg = z.infer<typeof PawnKilledMsgSchema>;
 
-export type ServerMessage =
-    | RoomInfoMsg
-    | JoinSuccessMsg
-    | JoinRejectedMsg
-    | PlayerJoinedMsg
-    | SyncStateMsg
-    | PatchStateMsg
-    | DiceResultMsg
-    | MoveExecutedMsg
-    | TurnSkippedMsg
-    | PawnKilledMsg
-    | HomeRunMsg
-    | PlayerKickedMsg
-    | TurnTimerStartMsg
-    | BotTakeoverMsg
-    | GameResetMsg
-    | ErrorPayload;
+export const HomeRunMsgSchema = z.object({
+    type: z.literal('HOME_RUN'),
+    pawnId: z.string()
+});
+export type HomeRunMsg = z.infer<typeof HomeRunMsgSchema>;
+
+export const PlayerKickedMsgSchema = z.object({
+    type: z.literal('PLAYER_KICKED'),
+    playerId: z.string(),
+    reason: z.string()
+});
+export type PlayerKickedMsg = z.infer<typeof PlayerKickedMsgSchema>;
+
+export const TurnTimerStartMsgSchema = z.object({
+    type: z.literal('TURN_TIMER_START'),
+    player: ColorSchema,
+    timeoutMs: z.number(),
+    startTime: z.number()
+});
+export type TurnTimerStartMsg = z.infer<typeof TurnTimerStartMsgSchema>;
+
+export const BotTakeoverMsgSchema = z.object({
+    type: z.literal('BOT_TAKEOVER'),
+    playerId: z.string(),
+    color: ColorSchema
+});
+export type BotTakeoverMsg = z.infer<typeof BotTakeoverMsgSchema>;
+
+export const GameResetMsgSchema = z.object({
+    type: z.literal('GAME_RESET')
+});
+export type GameResetMsg = z.infer<typeof GameResetMsgSchema>;
+
+export const ErrorPayloadSchema = z.object({
+    type: z.literal('ERROR'),
+    code: z.string(),
+    message: z.string()
+});
+export type ErrorPayload = z.infer<typeof ErrorPayloadSchema>;
+
+export const ServerMessageSchema = z.discriminatedUnion('type', [
+    RoomInfoMsgSchema,
+    JoinSuccessMsgSchema,
+    JoinRejectedMsgSchema,
+    PlayerJoinedMsgSchema,
+    SyncStateMsgSchema,
+    PatchStateMsgSchema,
+    DiceResultMsgSchema,
+    MoveExecutedMsgSchema,
+    TurnSkippedMsgSchema,
+    PawnKilledMsgSchema,
+    HomeRunMsgSchema,
+    PlayerKickedMsgSchema,
+    TurnTimerStartMsgSchema,
+    BotTakeoverMsgSchema,
+    GameResetMsgSchema,
+    ErrorPayloadSchema
+]);
+
+export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 
 // Client -> Server Messages
 export const ClientMessageSchema = z.discriminatedUnion('type', [

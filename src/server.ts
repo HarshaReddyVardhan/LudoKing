@@ -2,7 +2,7 @@ import type * as Party from "partykit/server";
 import { GameState, ServerMessage, ClientMessageSchema, GamePhase, Color } from "./shared/types";
 import { createInitialState, resetGame } from "./logic/gameState";
 import { handleRollRequest } from "./logic/diceEngine";
-import { getValidMoves, getValidPawnIds, executeMove } from "./logic/moveValidation";
+import { getValidMoves, getValidPawnIds, executeMove } from "./logic/rules/moveValidation";
 import {
     MAX_PLAYERS_PER_ROOM,
     handlePlayerJoin,
@@ -153,6 +153,12 @@ export default class LudoServer implements Party.Server {
 
         const parsed = result.data;
 
+        if (this.isProcessingTurn) {
+            send(sender, { type: 'ERROR', code: 'BUSY', message: 'Server is processing turn' });
+            return;
+        }
+
+        this.isProcessingTurn = true;
         try {
             switch (parsed.type) {
                 case 'JOIN_REQUEST':
@@ -221,6 +227,8 @@ export default class LudoServer implements Party.Server {
                 code: 'INTERNAL_ERROR',
                 message: err instanceof Error ? err.message : 'Unknown server error',
             });
+        } finally {
+            this.isProcessingTurn = false;
         }
     }
 

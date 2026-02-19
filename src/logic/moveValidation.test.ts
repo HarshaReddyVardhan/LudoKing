@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getValidMoves, getValidPawnIds, executeMove } from './moveValidation';
+import { getValidMoves, getValidPawnIds, executeMove } from './rules/moveValidation';
 import { createInitialState, createPlayer, initializePawns } from './gameState';
 import { GameState, Pawn } from '../shared/types';
 import { BOARD, toGlobalPosition } from '../shared/board';

@@ -1,4 +1,4 @@
-import type { ServerMessage } from '../../src/shared/types';
+import { type ServerMessage, ServerMessageSchema } from '../../src/shared/types';
 
 const PARTYKIT_HOST = 'localhost:1999';
 
@@ -24,8 +24,19 @@ export function connect(joinedRoom: string, onMessage: MessageHandler) {
     };
 
     socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        onMessage(data);
+        try {
+            const raw = JSON.parse(event.data);
+            const result = ServerMessageSchema.safeParse(raw);
+
+            if (!result.success) {
+                console.error("Invalid message received:", result.error);
+                return;
+            }
+
+            onMessage(result.data);
+        } catch (e) {
+            console.error("Failed to parse socket message:", e);
+        }
     };
 
     socket.onclose = (event) => {
