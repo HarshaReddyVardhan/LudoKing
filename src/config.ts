@@ -3,7 +3,7 @@ declare const process: any;
 export const CONFIG = {
     // Game Rules
     MAX_PLAYERS: parseInt(process.env.MAX_PLAYERS_PER_ROOM || '4', 10),
-    TURN_TIMEOUT_MS: parseInt(process.env.TURN_TIMEOUT_MS || '30000', 10), // 30 seconds
+    TURN_TIMEOUT_MS: parseInt(process.env.TURN_TIMEOUT_MS || '300000', 10), // 5 minutes
 
     // Animation & UX
     ANIMATION_DELAY_MS: parseInt(process.env.ANIMATION_DELAY_MS || '2000', 10), // 2 seconds

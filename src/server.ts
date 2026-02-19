@@ -327,10 +327,7 @@ export default class LudoServer implements Party.Server {
     }
 
     private handleRoll(conn: Party.Connection) {
-        if (this.isProcessingTurn) {
-            send(conn, { type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' });
-            return;
-        }
+
 
         const currentPlayer = this.gameState.players.find(
             p => p.color === this.gameState.currentTurn
@@ -414,10 +411,7 @@ export default class LudoServer implements Party.Server {
     }
 
     private handleMove(conn: Party.Connection, pawnId: string) {
-        if (this.isProcessingTurn) {
-            send(conn, { type: 'ERROR', code: 'TURN_IN_PROGRESS', message: 'Turn in process' });
-            return;
-        }
+
 
         const oldState = this.gameState;
 
@@ -574,53 +568,30 @@ export default class LudoServer implements Party.Server {
                 return;
             }
 
-            const currentSkips = (this.skippedTurns.get(currentPlayer.id) || 0) + 1;
-            this.skippedTurns.set(currentPlayer.id, currentSkips);
-
+            // 5-MINUTE TIMEOUT LOGIC: Close session immediately
             Logger.info({
                 event: 'PLAYER_TIMEOUT',
                 player: currentPlayer.name,
-                skips: currentSkips
+                action: 'CLOSE_SESSION'
             });
 
-            if (currentSkips >= 3) {
-                // AFK TAKEOVER: Do NOT kick, switch to bot
-                Logger.info({
-                    event: 'BOT_TAKEOVER',
-                    player: currentPlayer.name
-                });
-
-                // Update player text
-                const wasName = currentPlayer.name;
-
-                this.gameState = {
-                    ...this.gameState,
-                    players: this.gameState.players.map(p => {
-                        if (p.id === currentPlayer.id) {
-                            return {
-                                ...p,
-                                isBot: true,
-                                isActive: true, // Keep active so bot plays
-                                name: `${wasName} (Auto)`
-                            };
-                        }
-                        return p;
-                    })
-                };
-
-                broadcast(this.room, {
-                    type: 'BOT_TAKEOVER',
-                    playerId: currentPlayer.id,
-                    color: currentPlayer.color
-                });
-
-                this.broadcastState();
-
-                // Immediately trigger update so bot plays this turn if it's still their turn
-                this.update();
-            } else {
-                this.skipTurn();
+            // Find connection and close it
+            const connections = [...this.room.connections.values()];
+            const playerConn = connections.find(c => c.id === currentPlayer.connectionId);
+            if (playerConn) {
+                playerConn.close(4000, "Session closed due to inactivity (5 min timeout)");
             }
+
+            // Mark inactive and skip turn
+            this.gameState = {
+                ...this.gameState,
+                players: this.gameState.players.map(p =>
+                    p.id === currentPlayer.id ? { ...p, isActive: false } : p
+                )
+            };
+
+            // If only 1 player left, maybe end game? For now, just skip turn so others can play.
+            this.skipTurn();
         } catch (error) {
             Logger.error({ event: 'ALARM_ERROR', error });
         } finally {
