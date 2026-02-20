@@ -1,4 +1,4 @@
-import { GameState, PlayerColor } from '../../shared/types';
+import { GameState, GamePhase } from '../../shared/types';
 import { BotStrategy, BotAction, getDistanceFromStart } from './botUtils';
 import { ValidMove, getValidMoves } from '../rules/moveValidation';
 import { rollDice } from '../game/diceEngine';
@@ -111,12 +111,12 @@ export class SmartBot implements BotStrategy {
     }
 
     computeNextMove(state: GameState, playerColor: string): BotAction {
-        if (state.gamePhase === 'ROLLING') {
+        if (state.gamePhase === GamePhase.ROLLING) {
             const diceValue = rollDice();
             return { type: 'ROLL', diceValue };
         }
 
-        if (state.gamePhase === 'MOVING') {
+        if (state.gamePhase === GamePhase.MOVING) {
             const validMoves: ValidMove[] = getValidMoves(state);
 
             if (validMoves.length === 0) {

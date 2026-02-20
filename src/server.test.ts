@@ -6,8 +6,8 @@
 import { describe, it, expect } from 'vitest';
 import { createInitialState, createPlayer, initializePawns, checkWinCondition } from './logic/gameState';
 import { handleRollRequest, IDiceProvider } from './logic/diceEngine';
-import { getValidMoves, executeMove } from './logic/moveValidation';
-import { GameState } from './shared/types';
+import { getValidMoves, executeMove } from './logic/rules/moveValidation';
+import { GameState, Color, GamePhase } from './shared/types';
 import { SimpleBot } from './logic/simpleBot';
 
 // ─── Deterministic mock dice ──────────────────────────────────────────────────
@@ -25,7 +25,7 @@ class MockDiceProvider implements IDiceProvider {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function createGameWithPlayers(humanCount: number, botCount: number): GameState {
     const state = createInitialState('TEST-SERVER');
-    const colors = ['RED', 'BLUE', 'GREEN', 'YELLOW'] as const;
+    const colors = [Color.RED, Color.BLUE, Color.GREEN, Color.YELLOW];
     let idx = 0;
 
     for (let i = 0; i < humanCount; i++) {
@@ -44,8 +44,8 @@ function createGameWithPlayers(humanCount: number, botCount: number): GameState 
         state.pawns.push(...initializePawns(color));
     }
 
-    state.gamePhase = 'ROLLING';
-    state.currentTurn = 'RED';
+    state.gamePhase = GamePhase.ROLLING;
+    state.currentTurn = Color.RED;
     return state;
 }
 
@@ -62,28 +62,28 @@ describe('Bot Takeover Scenarios', () => {
             state.pawns[1].position = 11; // RED_1 at position 11
             state.pawns[2].position = 12; // RED_2 at position 12 (safe: 14 is blue start, 12 unsafe)
             state.pawns[3].position = 15; // RED_3 at position 15
-            state.currentTurn = 'RED';
-            state.gamePhase = 'ROLLING';
+            state.currentTurn = Color.RED;
+            state.gamePhase = GamePhase.ROLLING;
 
             const bot = new SimpleBot();
 
             // Phase 1: Roll — bot should return ROLL action
-            const rollAction = bot.computeNextMove(state, 'RED');
+            const rollAction = bot.computeNextMove(state, Color.RED);
             expect(rollAction.type).toBe('ROLL');
 
             // Simulate roll with mock die: raw = 0.5 -> floor(0.5 * 6) + 1 = 4
             // No weighted dice since 0 pawns are at HOME
-            const redPlayer = state.players.find(p => p.color === 'RED')!;
+            const redPlayer = state.players.find(p => p.color === Color.RED)!;
             const mock = new MockDiceProvider([0.5]);
             const rollResult = handleRollRequest(state, redPlayer.connectionId, mock);
             expect(rollResult.success).toBe(true);
             expect(rollResult.diceValue).toBe(4);
 
             const afterRollState = rollResult.newState;
-            expect(afterRollState.gamePhase).toBe('MOVING');
+            expect(afterRollState.gamePhase).toBe(GamePhase.MOVING);
 
             // Phase 2: Move — bot should return MOVE action
-            const moveAction = bot.computeNextMove(afterRollState, 'RED');
+            const moveAction = bot.computeNextMove(afterRollState, Color.RED);
             expect(moveAction.type).toBe('MOVE');
             expect(moveAction.pawnId).toBeTruthy();
 
@@ -95,13 +95,13 @@ describe('Bot Takeover Scenarios', () => {
         it('should skip turn when no valid moves available', () => {
             // All RED pawns in home, dice = 4 (cannot leave home)
             const state = createGameWithPlayers(0, 2);
-            state.currentTurn = 'RED';
-            state.gamePhase = 'MOVING';
+            state.currentTurn = Color.RED;
+            state.gamePhase = GamePhase.MOVING;
             state.currentDiceValue = 4;
             // All RED pawns already at HOME (default)
 
             const bot = new SimpleBot();
-            const action = bot.computeNextMove(state, 'RED');
+            const action = bot.computeNextMove(state, Color.RED);
             expect(action.type).toBe('SKIP');
         });
     });
@@ -111,10 +111,10 @@ describe('Bot Takeover Scenarios', () => {
             // Simulate a state where it is a bot's turn
             const state = createGameWithPlayers(1, 1);
             // Make it BLUE bot's turn (idx 1)
-            state.currentTurn = 'BLUE';
-            state.gamePhase = 'ROLLING';
+            state.currentTurn = Color.BLUE;
+            state.gamePhase = GamePhase.ROLLING;
 
-            const currentPlayer = state.players.find(p => p.color === 'BLUE')!;
+            const currentPlayer = state.players.find(p => p.color === Color.BLUE)!;
             expect(currentPlayer.isBot).toBe(true);
         });
 
@@ -123,14 +123,14 @@ describe('Bot Takeover Scenarios', () => {
 
             // Mark RED as inactive (e.g. disconnected)
             state.players = state.players.map(p =>
-                p.color === 'RED' ? { ...p, isActive: false } : p
+                p.color === Color.RED ? { ...p, isActive: false } : p
             );
-            state.currentTurn = 'BLUE'; // already on BLUE
-            state.gamePhase = 'ROLLING';
+            state.currentTurn = Color.BLUE; // already on BLUE
+            state.gamePhase = GamePhase.ROLLING;
             state.currentDiceValue = null;
 
             // Only BLUE is active — they should be able to roll
-            const bluePlayer = state.players.find(p => p.color === 'BLUE')!;
+            const bluePlayer = state.players.find(p => p.color === Color.BLUE)!;
             const mock = new MockDiceProvider([0.5]);
             const result = handleRollRequest(state, bluePlayer.connectionId, mock);
             expect(result.success).toBe(true);
@@ -141,11 +141,11 @@ describe('Bot Takeover Scenarios', () => {
 
             // RED bot has a pawn on the board
             state.pawns[0].position = 5; // RED_0
-            state.currentTurn = 'RED';
-            state.gamePhase = 'ROLLING';
+            state.currentTurn = Color.RED;
+            state.gamePhase = GamePhase.ROLLING;
 
             const bot = new SimpleBot();
-            const redPlayer = state.players.find(p => p.color === 'RED')!;
+            const redPlayer = state.players.find(p => p.color === Color.RED)!;
 
             // Roll with known dice value (0.5 -> 4)
             const mock = new MockDiceProvider([0.5]);
@@ -153,7 +153,7 @@ describe('Bot Takeover Scenarios', () => {
             expect(rollResult.success).toBe(true);
 
             const afterRoll = rollResult.newState;
-            const moveAction = bot.computeNextMove(afterRoll, 'RED');
+            const moveAction = bot.computeNextMove(afterRoll, Color.RED);
 
             if (moveAction.type === 'MOVE') {
                 const validMoves = getValidMoves(afterRoll);
@@ -162,9 +162,9 @@ describe('Bot Takeover Scenarios', () => {
 
                 // After non-extra-turn move, it should be BLUE's turn
                 if (!moveResult.extraTurn) {
-                    expect(moveResult.newState.currentTurn).toBe('BLUE');
+                    expect(moveResult.newState.currentTurn).toBe(Color.BLUE);
                 } else {
-                    expect(moveResult.newState.currentTurn).toBe('RED');
+                    expect(moveResult.newState.currentTurn).toBe(Color.RED);
                 }
             }
         });
@@ -176,17 +176,17 @@ describe('Bot Takeover Scenarios', () => {
 
             // Move all RED pawns to GOAL (59)
             state.pawns = state.pawns.map(p =>
-                p.color === 'RED' ? { ...p, position: 59 } : p
+                p.color === Color.RED ? { ...p, position: 59 } : p
             );
 
             const updatedState = checkWinCondition(state);
 
             // RED should be rank 1
-            const redPlayer = updatedState.players.find(p => p.color === 'RED')!;
+            const redPlayer = updatedState.players.find(p => p.color === Color.RED)!;
             expect(redPlayer.rank).toBe(1);
 
             // Game should NOT be finished yet (BLUE and GREEN still playing)
-            expect(updatedState.gamePhase).not.toBe('FINISHED');
+            expect(updatedState.gamePhase).not.toBe(GamePhase.FINISHED);
         });
 
         it('should end game and auto-assign last rank when 1 player remains', () => {
@@ -194,17 +194,17 @@ describe('Bot Takeover Scenarios', () => {
 
             // Move RED and BLUE pawns to GOAL (2 of 3 finish)
             state.pawns = state.pawns.map(p =>
-                (p.color === 'RED' || p.color === 'BLUE') ? { ...p, position: 59 } : p
+                (p.color === Color.RED || p.color === Color.BLUE) ? { ...p, position: 59 } : p
             );
 
             const updatedState = checkWinCondition(state);
 
             // RED = rank 1, BLUE = rank 2, GREEN auto-assigned rank 3
-            const greenPlayer = updatedState.players.find(p => p.color === 'GREEN')!;
+            const greenPlayer = updatedState.players.find(p => p.color === Color.GREEN)!;
             expect(greenPlayer.rank).toBe(3);
 
             // Game should be FINISHED
-            expect(updatedState.gamePhase).toBe('FINISHED');
+            expect(updatedState.gamePhase).toBe(GamePhase.FINISHED);
         });
     });
 });

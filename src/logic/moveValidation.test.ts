@@ -1,21 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { getValidMoves, getValidPawnIds, executeMove } from './rules/moveValidation';
 import { createInitialState, createPlayer, initializePawns } from './gameState';
-import { GameState, Pawn } from '../shared/types';
+import { GameState, Pawn, Color, GamePhase } from '../shared/types';
 import { BOARD, toGlobalPosition } from '../shared/board';
 
 function createTestState(): GameState {
     const state = createInitialState('TEST01');
     state.players = [
-        createPlayer('player1', 'Alice', 'RED'),
-        createPlayer('player2', 'Bob', 'BLUE'),
+        createPlayer('player1', 'Alice', Color.RED),
+        createPlayer('player2', 'Bob', Color.BLUE),
     ];
     state.pawns = [
-        ...initializePawns('RED'),
-        ...initializePawns('BLUE'),
+        ...initializePawns(Color.RED),
+        ...initializePawns(Color.BLUE),
     ];
-    state.currentTurn = 'RED';
-    state.gamePhase = 'MOVING';
+    state.currentTurn = Color.RED;
+    state.gamePhase = GamePhase.MOVING;
     return state;
 }
 
@@ -112,16 +112,16 @@ describe('Movement Validation', () => {
     describe('Capture Detection', () => {
         it('should calculate global positions correctly for collision detection', () => {
             // RED: Local step 1 -> Global position 1
-            const redStart = toGlobalPosition(1, 'RED');
+            const redStart = toGlobalPosition(1, Color.RED);
             expect(redStart).toBe(1);
 
             // BLUE: Local step 1 -> Global position 14
-            const blueStart = toGlobalPosition(1, 'BLUE');
+            const blueStart = toGlobalPosition(1, Color.BLUE);
             expect(blueStart).toBe(14);
 
             // This demonstrates collision: RED at local step 14 and BLUE at local step 1
             // are both at global position 14
-            expect(toGlobalPosition(14, 'RED')).toBe(14);
+            expect(toGlobalPosition(14, Color.RED)).toBe(14);
         });
 
         it('should detect capture on non-safe square (Global 15)', () => {
@@ -253,7 +253,7 @@ describe('Movement Validation', () => {
 
             expect(result.success).toBe(true);
             expect(result.extraTurn).toBe(true);
-            expect(result.newState.currentTurn).toBe('RED'); // Still RED's turn
+            expect(result.newState.currentTurn).toBe(Color.RED); // Still RED's turn
         });
 
         it('should switch turn after normal move', () => {
@@ -266,7 +266,7 @@ describe('Movement Validation', () => {
 
             expect(result.success).toBe(true);
             expect(result.extraTurn).toBeFalsy();
-            expect(result.newState.currentTurn).toBe('BLUE'); // Next player
+            expect(result.newState.currentTurn).toBe(Color.BLUE); // Next player
         });
     });
 

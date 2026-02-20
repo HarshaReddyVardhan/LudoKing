@@ -1,16 +1,16 @@
-import { GameState } from '../../shared/types';
+import { GameState, GamePhase } from '../../shared/types';
 import { ValidMove, getValidMoves } from '../rules/moveValidation';
 import { rollDice } from '../game/diceEngine';
 import { BotStrategy, BotAction } from './botUtils';
 
 export class SimpleBot implements BotStrategy {
     computeNextMove(state: GameState, playerColor: string): BotAction {
-        if (state.gamePhase === 'ROLLING') {
+        if (state.gamePhase === GamePhase.ROLLING) {
             const diceValue = rollDice();
             return { type: 'ROLL', diceValue };
         }
 
-        if (state.gamePhase === 'MOVING') {
+        if (state.gamePhase === GamePhase.MOVING) {
             const validMoves = getValidMoves(state);
 
             if (validMoves.length === 0) {
@@ -29,12 +29,12 @@ export class SimpleBot implements BotStrategy {
 
 export class WeightedSimpleBot implements BotStrategy {
     computeNextMove(state: GameState, playerColor: string): BotAction {
-        if (state.gamePhase === 'ROLLING') {
+        if (state.gamePhase === GamePhase.ROLLING) {
             const diceValue = rollDice();
             return { type: 'ROLL', diceValue };
         }
 
-        if (state.gamePhase === 'MOVING') {
+        if (state.gamePhase === GamePhase.MOVING) {
             const validMoves: ValidMove[] = getValidMoves(state);
 
             if (validMoves.length === 0) {

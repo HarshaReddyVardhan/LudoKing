@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { rollDice, handleRollRequest, resetToRollingPhase, IDiceProvider } from './diceEngine';
 import { createInitialState, createPlayer } from './gameState';
-import { GameState } from '../shared/types';
+import { GameState, Color, GamePhase } from '../shared/types';
 
 class MockDiceProvider implements IDiceProvider {
     private sequence: number[];
@@ -47,11 +47,11 @@ describe('Dice Engine', () => {
         function createTestState(): GameState {
             const state = createInitialState('TEST01');
             state.players = [
-                createPlayer('player1', 'Alice', 'RED'),
-                createPlayer('player2', 'Bob', 'BLUE'),
+                createPlayer('player1', 'Alice', Color.RED),
+                createPlayer('player2', 'Bob', Color.BLUE),
             ];
-            state.currentTurn = 'RED';
-            state.gamePhase = 'ROLLING';
+            state.currentTurn = Color.RED;
+            state.gamePhase = GamePhase.ROLLING;
             return state;
         }
 
@@ -64,7 +64,7 @@ describe('Dice Engine', () => {
 
             expect(result.success).toBe(true);
             expect(result.diceValue).toBe(4);
-            expect(result.newState.gamePhase).toBe('MOVING');
+            expect(result.newState.gamePhase).toBe(GamePhase.MOVING);
             expect(result.newState.currentDiceValue).toBe(4);
         });
 
@@ -78,7 +78,7 @@ describe('Dice Engine', () => {
 
         it('should reject roll if player already rolled (MOVING phase)', () => {
             const state = createTestState();
-            state.gamePhase = 'MOVING';
+            state.gamePhase = GamePhase.MOVING;
             state.currentDiceValue = 4;
 
             const result = handleRollRequest(state, 'player1');
@@ -116,15 +116,15 @@ describe('Dice Engine', () => {
     describe('resetToRollingPhase', () => {
         it('should reset state for next player turn', () => {
             const state = createInitialState('TEST01');
-            state.gamePhase = 'MOVING';
+            state.gamePhase = GamePhase.MOVING;
             state.currentDiceValue = 5;
-            state.currentTurn = 'RED';
+            state.currentTurn = Color.RED;
 
-            const newState = resetToRollingPhase(state, 'BLUE');
+            const newState = resetToRollingPhase(state, Color.BLUE);
 
-            expect(newState.gamePhase).toBe('ROLLING');
+            expect(newState.gamePhase).toBe(GamePhase.ROLLING);
             expect(newState.currentDiceValue).toBeNull();
-            expect(newState.currentTurn).toBe('BLUE');
+            expect(newState.currentTurn).toBe(Color.BLUE);
         });
     });
 
@@ -134,24 +134,24 @@ describe('Dice Engine', () => {
         function createTestState(): GameState {
             const state = createInitialState('TEST01');
             state.players = [
-                createPlayer('player1', 'Alice', 'RED'),
-                createPlayer('player2', 'Bob', 'BLUE'),
+                createPlayer('player1', 'Alice', Color.RED),
+                createPlayer('player2', 'Bob', Color.BLUE),
             ];
             // Move all RED pawns onto the board so weighted-six doesn't trigger.
             // Non-weighted: floor(r * 6) + 1
             // 0.99 -> 6,  0.5 -> 4,  0.0 -> 1
             state.pawns = [
-                { id: 'RED_0', color: 'RED', position: 5, pawnIndex: 0 },
-                { id: 'RED_1', color: 'RED', position: 6, pawnIndex: 1 },
-                { id: 'RED_2', color: 'RED', position: 7, pawnIndex: 2 },
-                { id: 'RED_3', color: 'RED', position: 8, pawnIndex: 3 },
-                { id: 'BLUE_0', color: 'BLUE', position: 0, pawnIndex: 0 },
-                { id: 'BLUE_1', color: 'BLUE', position: 0, pawnIndex: 1 },
-                { id: 'BLUE_2', color: 'BLUE', position: 0, pawnIndex: 2 },
-                { id: 'BLUE_3', color: 'BLUE', position: 0, pawnIndex: 3 },
+                { id: 'RED_0', color: Color.RED, position: 5, pawnIndex: 0 },
+                { id: 'RED_1', color: Color.RED, position: 6, pawnIndex: 1 },
+                { id: 'RED_2', color: Color.RED, position: 7, pawnIndex: 2 },
+                { id: 'RED_3', color: Color.RED, position: 8, pawnIndex: 3 },
+                { id: 'BLUE_0', color: Color.BLUE, position: 0, pawnIndex: 0 },
+                { id: 'BLUE_1', color: Color.BLUE, position: 0, pawnIndex: 1 },
+                { id: 'BLUE_2', color: Color.BLUE, position: 0, pawnIndex: 2 },
+                { id: 'BLUE_3', color: Color.BLUE, position: 0, pawnIndex: 3 },
             ];
-            state.currentTurn = 'RED';
-            state.gamePhase = 'ROLLING';
+            state.currentTurn = Color.RED;
+            state.gamePhase = GamePhase.ROLLING;
             return state;
         }
 
@@ -168,13 +168,13 @@ describe('Dice Engine', () => {
             expect(result.success).toBe(true);
             expect(result.diceValue).toBe(6);
             // Turn should pass to BLUE (the next active player)
-            expect(result.newState.currentTurn).toBe('BLUE');
+            expect(result.newState.currentTurn).toBe(Color.BLUE);
             // Dice value reset (no move allowed)
             expect(result.newState.currentDiceValue).toBeNull();
             // Streak reset
             expect(result.newState.consecutiveSixes).toBe(0);
             // Phase back to ROLLING for BLUE
-            expect(result.newState.gamePhase).toBe('ROLLING');
+            expect(result.newState.gamePhase).toBe(GamePhase.ROLLING);
         });
 
         it('should preserve consecutive six streak after first six', () => {
@@ -188,9 +188,9 @@ describe('Dice Engine', () => {
             expect(result.success).toBe(true);
             expect(result.diceValue).toBe(6);
             // Still RED's turn, streak = 1
-            expect(result.newState.currentTurn).toBe('RED');
+            expect(result.newState.currentTurn).toBe(Color.RED);
             expect(result.newState.consecutiveSixes).toBe(1);
-            expect(result.newState.gamePhase).toBe('MOVING');
+            expect(result.newState.gamePhase).toBe(GamePhase.MOVING);
         });
 
         it('should reset streak on non-six after two sixes', () => {
@@ -204,9 +204,9 @@ describe('Dice Engine', () => {
             expect(result.success).toBe(true);
             expect(result.diceValue).toBe(4);
             // Turn does NOT change (not a forfeit)
-            expect(result.newState.currentTurn).toBe('RED');
+            expect(result.newState.currentTurn).toBe(Color.RED);
             expect(result.newState.consecutiveSixes).toBe(0);
-            expect(result.newState.gamePhase).toBe('MOVING');
+            expect(result.newState.gamePhase).toBe(GamePhase.MOVING);
         });
 
         it('should skip inactive players when forfeiting on 3 sixes', () => {
@@ -215,27 +215,27 @@ describe('Dice Engine', () => {
             // 4-player game: RED (all pawns on board), BLUE (inactive), GREEN, YELLOW
             const state = createInitialState('TEST01');
             state.players = [
-                createPlayer('p1', 'Alice', 'RED'),
-                { ...createPlayer('p2', 'Bob', 'BLUE'), isActive: false },
-                createPlayer('p3', 'Carol', 'GREEN'),
-                createPlayer('p4', 'Dave', 'YELLOW'),
+                createPlayer('p1', 'Alice', Color.RED),
+                { ...createPlayer('p2', 'Bob', Color.BLUE), isActive: false },
+                createPlayer('p3', 'Carol', Color.GREEN),
+                createPlayer('p4', 'Dave', Color.YELLOW),
             ];
             // Move all RED pawns onto board (non-weighted dice)
             state.pawns = [
-                { id: 'RED_0', color: 'RED', position: 5, pawnIndex: 0 },
-                { id: 'RED_1', color: 'RED', position: 6, pawnIndex: 1 },
-                { id: 'RED_2', color: 'RED', position: 7, pawnIndex: 2 },
-                { id: 'RED_3', color: 'RED', position: 8, pawnIndex: 3 },
+                { id: 'RED_0', color: Color.RED, position: 5, pawnIndex: 0 },
+                { id: 'RED_1', color: Color.RED, position: 6, pawnIndex: 1 },
+                { id: 'RED_2', color: Color.RED, position: 7, pawnIndex: 2 },
+                { id: 'RED_3', color: Color.RED, position: 8, pawnIndex: 3 },
             ];
-            state.currentTurn = 'RED';
-            state.gamePhase = 'ROLLING';
+            state.currentTurn = Color.RED;
+            state.gamePhase = GamePhase.ROLLING;
             state.consecutiveSixes = 2;
 
             const result = handleRollRequest(state, 'p1', mock);
 
             expect(result.success).toBe(true);
             // BLUE is inactive, so next active player is GREEN
-            expect(result.newState.currentTurn).toBe('GREEN');
+            expect(result.newState.currentTurn).toBe(Color.GREEN);
             expect(result.newState.consecutiveSixes).toBe(0);
         });
     });
